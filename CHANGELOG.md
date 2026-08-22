@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-23
+
 ### Added
 
 - ESP32-2432S028RをChatGPT DesktopからCodex Micro互換BLE HIDとして認識できるように、Report 6のJSON-RPC通信を追加した。
@@ -12,7 +14,12 @@
 - 基板ごとのタッチ誤差を補正できるように、BOOT起動による2点調整とバージョン付き保存を追加した。
 - プロトコル変更による退行を見つけやすくするため、入力領域と状態色分類のネイティブ単体テストを追加した。
 - USBケーブルの取り回しに合わせられるように、物理BOOTボタンの短押しによる180度回転、タッチ座標反転、向きの永続化を追加した。
-- 付属ペンの軽い押下を認識できるように、XPT2046ドライバーの圧力閾値を400から75へ変更し、読取周期短縮とBOOTボタン長押しによる実行時2点調整を追加した。
+- 付属ペンの軽い押下を認識できるように、XPT2046ドライバーの圧力閾値を400から120へ変更し、読取周期短縮とBOOTボタン長押しによる実行時2点調整を追加した。
+- タグから検証可能なファームウェアを配布できるように、CI、Release workflow、mergedイメージ、分割bundle、SHA-256、build provenance attestationを追加した。
+
+### Security
+
+- Releaseビルド環境の依存を固定してCIとReleaseの両方で `pip-audit` を実行し、PlatformIOが要求するWeb server依存の到達不能なadvisoryだけを根拠・見直し条件付きで限定除外した。
 
 ### Changed
 
@@ -29,3 +36,7 @@
 - Windows版Codex Desktop 26.818.5229.0との実機検証で、BLE列挙、bonding、照明設定、6 Agent状態、端末状態のRPC往復を確認した。
 - ダイヤル押下が現在のDesktopで認識されるように、HIDキーIDを `ENC_CLK` へ修正した。
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
+- キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
+
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/roflsunriz/esp32-codex-notifications/releases/tag/v0.1.0

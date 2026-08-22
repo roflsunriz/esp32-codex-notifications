@@ -185,7 +185,10 @@ void DeviceUi::calibrateTouch() {
 }
 
 bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
-  if (!touch_.tirqTouched()) return false;
+  if (!touch_.tirqTouched()) {
+    touchFilter_.reset();
+    return false;
+  }
   const SensitiveTouchPoint point = touch_.getPoint();
   if (point.z < board::kTouchPressureMinimum) return false;
   const ScreenPoint oriented = orientPoint(
@@ -194,8 +197,10 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
        mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
                board::kScreenHeight - 1)},
       inverted_);
-  x = oriented.x;
-  y = oriented.y;
+  ScreenPoint stabilized;
+  if (!touchFilter_.push(oriented, stabilized)) return false;
+  x = stabilized.x;
+  y = stabilized.y;
   return true;
 }
 

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLATFORMIO_CORE_DIR: ${{ github.workspace }}/.pio-core
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  validate:
+    name: Test and build firmware
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install audited CLI toolchain
+        run: |
+          python -m pip install --upgrade pip==26.2
+          python -m pip install -r requirements-ci.txt
+
+      - name: Audit Python build dependencies
+        run: >-
+          python -m pip_audit --local --cache-dir .pip-audit-cache
+          --ignore-vuln PYSEC-2026-161
+          --ignore-vuln PYSEC-2026-248
+          --ignore-vuln PYSEC-2026-249
+          --ignore-vuln PYSEC-2026-2280
+          --ignore-vuln PYSEC-2026-2281
+
+      - name: Run packaging unit tests
+        run: python -m unittest discover -s test -p "test_*.py"
+
+      - name: Configure native tests
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build native tests
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Run native tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Build ESP32 firmware
+        run: pio run -e cyd
+
+      - name: Run static analysis
+        run: pio check -e cyd --skip-packages

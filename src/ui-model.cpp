@@ -1,6 +1,7 @@
 #include "ui-model.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace {
 
@@ -65,6 +66,35 @@ ScreenPoint orientPoint(ScreenPoint point, bool inverted) {
   if (!inverted) return point;
   return {static_cast<std::int16_t>(319 - point.x),
           static_cast<std::int16_t>(239 - point.y)};
+}
+
+bool TouchSampleFilter::push(ScreenPoint sample, ScreenPoint& stabilized) {
+  if (delivered_) return false;
+  if (count_ > 0) {
+    const auto averageX = static_cast<std::int16_t>(sumX_ / count_);
+    const auto averageY = static_cast<std::int16_t>(sumY_ / count_);
+    if (std::abs(sample.x - averageX) > kMaximumDelta ||
+        std::abs(sample.y - averageY) > kMaximumDelta) {
+      reset();
+    }
+  }
+
+  sumX_ += sample.x;
+  sumY_ += sample.y;
+  ++count_;
+  if (count_ < kRequiredSamples) return false;
+
+  stabilized = {static_cast<std::int16_t>(sumX_ / count_),
+                static_cast<std::int16_t>(sumY_ / count_)};
+  delivered_ = true;
+  return true;
+}
+
+void TouchSampleFilter::reset() {
+  sumX_ = 0;
+  sumY_ = 0;
+  count_ = 0;
+  delivered_ = false;
 }
 
 BootGesture bootGestureForDuration(std::uint32_t durationMs) {

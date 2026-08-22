@@ -2,9 +2,12 @@ COMMON-AGENTS.md
 .pio/
 .pio-core/
 .pio-venv/
+.ci-venv/
 .npm-cache/
 .venv/
 .vscode/
 build/
+dist/
+.pip-audit-cache/
 *.pyc
 *.obj

@@ -15,7 +15,7 @@ constexpr std::int8_t kTouchMisoPin = 39;
 constexpr std::int8_t kTouchMosiPin = 32;
 constexpr std::int8_t kTouchChipSelectPin = 33;
 constexpr std::int8_t kTouchIrqPin = 36;
-constexpr std::int16_t kTouchPressureMinimum = 75;
+constexpr std::int16_t kTouchPressureMinimum = 120;
 
 // ESP32-2432S028R の代表値。起動時に BOOT を押すと実機値へ再調整できる。
 constexpr std::int16_t kDefaultTouchLeft = 200;

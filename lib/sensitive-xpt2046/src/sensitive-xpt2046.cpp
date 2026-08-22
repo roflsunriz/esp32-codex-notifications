@@ -29,7 +29,7 @@
 
 namespace {
 
-constexpr std::uint16_t kReleaseThreshold = 25;
+constexpr std::uint16_t kReleaseThreshold = 35;
 constexpr std::uint32_t kReadIntervalMs = 1;
 const SPISettings kSpiSettings(2000000, MSBFIRST, SPI_MODE0);
 SensitiveXpt2046* activeTouchscreen = nullptr;

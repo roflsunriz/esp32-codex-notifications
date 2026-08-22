@@ -1,0 +1,3 @@
+# CI and release tools. Transitive dependencies are audited after installation.
+platformio==6.1.19
+pip-audit==2.10.1

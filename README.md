@@ -1,5 +1,8 @@
 # ESP32 Codex Notifications
 
+[![CI](https://github.com/roflsunriz/esp32-codex-notifications/actions/workflows/ci.yml/badge.svg)](https://github.com/roflsunriz/esp32-codex-notifications/actions/workflows/ci.yml)
+[![Release firmware](https://github.com/roflsunriz/esp32-codex-notifications/actions/workflows/release.yml/badge.svg)](https://github.com/roflsunriz/esp32-codex-notifications/actions/workflows/release.yml)
+
 ESP32-2432S028R（ILI9341 / XPT2046、通称 CYD）を、ChatGPT Desktop の Codex Micro 機能から直接認識できる BLE コントローラーにする非公式ファームウェアです。
 
 画面には6つのCodexタスク状態が色とアイコンで表示されます。タッチ操作でタスク切り替え、Fast、承認、拒否、フォーク、音声入力、送信、履歴移動、ダイヤル操作を実行できます。PC側の常駐ブリッジやOpenAI APIキーは不要です。
@@ -50,6 +53,35 @@ pio device monitor
 
 起動成功時のシリアル出力は `CODEX_CYD_READY` です。
 
+## ビルド済みファームウェア
+
+[GitHub Releases](https://github.com/roflsunriz/esp32-codex-notifications/releases/latest) では、次の検証可能な配布物を公開します。
+
+- `*-merged.bin`: 初回導入・初期化向けに0x0へ一括書き込みするイメージ
+- `*-firmware.bin`: 既存のBluetooth pairingと端末設定を維持する更新用アプリイメージ
+- `*-bundle.zip`: 分割イメージ、manifest、書き込み手順
+- `SHA256SUMS.txt`: SHA-256検証値
+
+Windowsではダウンロード後に次のように検証できます。
+
+```powershell
+Get-FileHash .\esp32-codex-notifications-v0.1.0-merged.bin -Algorithm SHA256
+```
+
+値が `SHA256SUMS.txt` と一致したら、初回導入ではmergedイメージを0x0へ書き込みます。この操作はBluetooth bonding、タッチ調整、画面方向を含むNVS設定を初期化します。
+
+```powershell
+python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.1.0-merged.bin
+```
+
+`COM3` は実際のCH340ポートに置き換えてください。各Release assetにはGitHub Actionsのbuild provenance attestationも付与します。
+
+既に本ファームウェアを利用中で設定を維持する更新では、`*-firmware.bin` を0x10000へ書き込みます。
+
+```powershell
+python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.1.0-firmware.bin
+```
+
 ## Bluetooth接続
 
 1. ファームウェアを書き込み、ESP32を再起動します。
@@ -91,7 +123,7 @@ macOSでは同じBLEプロトコルのM5Stack Core2公開実装が検証され�
 
 タッチ位置がずれる場合は、動作中に物理 `BOOT` ボタンを1.5秒以上押して離します。画面に `TOUCH 1/2` と十字が表示されたら十字を押し、次に `TOUCH 2/2` の十字を押します。調整値はESP32内へ保存されます。従来どおり、`BOOT` を押したまま再起動して調整を始めることもできます。
 
-付属タッチペンの短い押下を認識しやすくするため、XPT2046の圧力閾値は標準ライブラリの固定値400から75へ変更し、読取周期を短縮しています。抵抗膜式なので表面をわずかに押し込む必要はありますが、強く突く必要はありません。誤反応を避けるため、ドラッグではなくボタン中央を短く押してください。
+付属タッチペンの短い押下を認識しやすくするため、XPT2046の圧力閾値は標準ライブラリの固定値400から120へ変更し、読取周期を短縮しています。抵抗膜式なので表面をわずかに押し込む必要があります。ノイズによる誤操作を防ぐため、近い座標を3回連続して取得した場合だけ押下が成立します。ドラッグではなくボタン中央を短く押してください。
 
 ## 安全性と制約
 

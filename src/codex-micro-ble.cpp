@@ -13,7 +13,7 @@ namespace {
 
 constexpr char kDeviceName[] = "Codex Micro";
 constexpr char kManufacturer[] = "Work Louder";
-constexpr char kFirmwareVersion[] = "0.1.0-cyd";
+constexpr char kFirmwareVersion[] = "0.1.0";
 constexpr std::size_t kPayloadSize = 61;
 constexpr std::size_t kReportBodySize = 63;
 constexpr std::size_t kMaximumRpcBytes = 4096;

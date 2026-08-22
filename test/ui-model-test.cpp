@@ -60,6 +60,22 @@ void testTouchContactIsLockedUntilPhysicalRelease() {
           "非接触を維持");
 }
 
+void testTouchSamplesMustBeStableBeforePress() {
+  TouchSampleFilter filter;
+  ScreenPoint output;
+  require(!filter.push({100, 200}, output), "1点では未確定");
+  require(!filter.push({104, 198}, output), "2点では未確定");
+  require(filter.push({102, 201}, output), "近い3点で確定");
+  require(output.x == 102 && output.y == 199, "3点平均");
+  require(!filter.push({101, 200}, output), "同一接触の再通知を禁止");
+
+  filter.reset();
+  require(!filter.push({20, 20}, output), "リセット後1点");
+  require(!filter.push({200, 200}, output), "座標飛びで再開始");
+  require(!filter.push({201, 199}, output), "再開始後2点");
+  require(filter.push({199, 201}, output), "再開始後の安定3点");
+}
+
 void testCommandGridAndProtocolIds() {
   const char* expected[] = {"ACT06", "ACT07", "ACT08", "ACT09", "ACT10", "ACT12"};
   for (int index = 0; index < 6; ++index) {
@@ -121,10 +137,11 @@ int main() {
   testTabs();
   testRotationControlAndCoordinates();
   testTouchContactIsLockedUntilPhysicalRelease();
+  testTouchSamplesMustBeStableBeforePress();
   testCommandGridAndProtocolIds();
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
   testStatusColors();
-  std::cout << "ui-model: 8 tests passed\n";
+  std::cout << "ui-model: 9 tests passed\n";
   return 0;
 }

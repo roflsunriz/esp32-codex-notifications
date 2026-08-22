@@ -36,6 +36,21 @@ struct ScreenPoint {
   ScreenPoint(std::int16_t xValue, std::int16_t yValue) : x(xValue), y(yValue) {}
 };
 
+class TouchSampleFilter {
+ public:
+  bool push(ScreenPoint sample, ScreenPoint& stabilized);
+  void reset();
+
+ private:
+  static constexpr std::uint8_t kRequiredSamples = 3;
+  static constexpr std::int16_t kMaximumDelta = 18;
+
+  std::int32_t sumX_ = 0;
+  std::int32_t sumY_ = 0;
+  std::uint8_t count_ = 0;
+  bool delivered_ = false;
+};
+
 enum class StatusKind : std::uint8_t {
   Unassigned,
   Idle,

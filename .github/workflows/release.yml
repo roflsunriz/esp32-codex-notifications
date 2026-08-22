@@ -1,0 +1,114 @@
+name: Release firmware
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing semantic version tag to release (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  PLATFORMIO_CORE_DIR: ${{ github.workspace }}/.pio-core
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Validate release tag and notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}"
+          test -f "docs/releases/$RELEASE_TAG.md"
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install audited CLI toolchain
+        run: |
+          python -m pip install --upgrade pip==26.2
+          python -m pip install -r requirements-ci.txt
+
+      - name: Audit Python build dependencies
+        run: >-
+          python -m pip_audit --local --cache-dir .pip-audit-cache
+          --ignore-vuln PYSEC-2026-161
+          --ignore-vuln PYSEC-2026-248
+          --ignore-vuln PYSEC-2026-249
+          --ignore-vuln PYSEC-2026-2280
+          --ignore-vuln PYSEC-2026-2281
+
+      - name: Run packaging unit tests
+        run: python -m unittest discover -s test -p "test_*.py"
+
+      - name: Configure native tests
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build and run native tests
+        run: |
+          cmake --build build --config Release --parallel 2
+          ctest --test-dir build -C Release --output-on-failure
+
+      - name: Build ESP32 firmware
+        run: pio run -e cyd
+
+      - name: Run static analysis
+        run: pio check -e cyd --skip-packages
+
+      - name: Package release assets
+        run: python scripts/package_release.py --version "$RELEASE_TAG"
+
+      - name: Generate artifact attestations
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Create or resume draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="docs/releases/$RELEASE_TAG.md"
+          title="ESP32 Codex Notifications $RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > release-draft.txt 2>/dev/null; then
+            test "$(cat release-draft.txt)" = "true"
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+            gh release edit "$RELEASE_TAG" --title "$title" --notes-file "$notes"
+          else
+            gh release create "$RELEASE_TAG" dist/* --draft --verify-tag --title "$title" --notes-file "$notes"
+          fi
+
+      - name: Publish verified release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest

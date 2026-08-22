@@ -65,6 +65,7 @@ class DeviceUi {
   std::array<StatusKind, 6> statuses_{};
   Page page_ = Page::Agents;
   InputAction pressedAction_;
+  TouchSampleFilter touchFilter_;
   bool pressed_ = false;
   bool inverted_ = false;
   std::int8_t notificationAgent_ = -1;

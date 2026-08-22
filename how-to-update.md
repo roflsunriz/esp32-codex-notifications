@@ -12,6 +12,7 @@
 2. `docs/protocol.md` に列挙した公開実装の最新コードを確認し、観測事実と推測を分けます。
 3. `platformio.ini` のESP32 platform、ArduinoJson、TFT_eSPIを更新します。XPT2046は `lib/sensitive-xpt2046` のローカル実装と上流v1.4の差分を確認します。
 4. lockfile相当の `.pio` 解決結果だけに依存せず、版を `platformio.ini` に固定します。
+   CI用Python依存は `requirements-ci.txt` へ固定し、`docs/security.md` の限定除外と到達性を再確認します。
 5. 次の検証を実行します。
 
 ```powershell
@@ -34,6 +35,20 @@ pio device monitor
 ```
 
 `CODEX_CYD_READY` が表示され、ChatGPT DesktopのCodex Micro設定にデバイスが現れることを確認します。
+
+## リリース
+
+1. `src/codex-micro-ble.cpp` のファームウェアバージョン、`CHANGELOG.md`、`docs/releases/vX.Y.Z.md` を同じバージョンへ更新します。
+2. CIが成功したmainのコミットへ注釈付きタグ `vX.Y.Z` を付けます。
+3. タグをpushすると `Release firmware` workflowがテスト、静的解析、ビルド、mergedイメージ生成、SHA-256生成、provenance attestation、GitHub Release公開を順番に行います。
+4. workflow成功後、Releaseのasset名、サイズ、`SHA256SUMS.txt`、attestationを確認します。
+
+ローカルでReleaseと同じ配布物を作る場合は次を実行します。
+
+```powershell
+pio run -e cyd
+python .\scripts\package_release.py --version vX.Y.Z
+```
 
 ## 復旧
 
