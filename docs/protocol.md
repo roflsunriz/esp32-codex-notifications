@@ -1,0 +1,86 @@
+# Codex Micro互換プロトコル調査
+
+調査日: 2026-08-23
+
+## 確認した情報源
+
+- [OpenAI Docs: Codex Micro](https://learn.chatgpt.com/docs/features/codex-micro): 6つのAgent Key、状態色、既定操作、BLE接続、ChatGPT Desktop設定の公式仕様。
+- [ZyoungInc/codex-keyboard](https://github.com/ZyoungInc/codex-keyboard) commit `2ee23a4ab696f94bb78d250f28cc4a9b879ba079`: ESP32 BLE HIDとしてChatGPT Desktopに認識させるMIT実装。
+- [mpociot/codex-micro-stream-deck-emulator](https://github.com/mpociot/codex-micro-stream-deck-emulator): HID Report 6、フレーミング、RPCメソッドを独立に再現したMIT実装。
+- [arthurcolle/codex-micro-open](https://github.com/arthurcolle/codex-micro-open): Creator Micro 2実機のUSB/BLE HID解析とJSON-RPCの独立検証。
+- [witnessmenow/ESP32-Cheap-Yellow-Display](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display): ESP32-2432S028Rの表示・タッチ配線とPlatformIO設定。
+
+OpenAI Docsは製品の利用方法と観測可能な状態を説明していますが、通信バイト列は公開していません。以下の通信詳細は、複数の公開互換実装で一致した非公式仕様です。
+
+## BLE HID識別
+
+| 項目 | 値 |
+| --- | --- |
+| デバイス名 | `Codex Micro` |
+| Manufacturer | `Work Louder` |
+| Vendor ID | `0x303A` |
+| Product ID | `0x8360` |
+| Usage Page | `0xFF00` |
+| Report ID | `6` |
+| Input / Output body | 各63 bytes |
+
+BLE HOGPではReport IDがCharacteristicの識別に使われ、通常は63-byte bodyに含まれません。互換ブリッジを考慮し、受信側は先頭にReport ID 6が付く64-byte形式も受け入れます。
+63-byte input notificationを切り詰めず送れるよう、ESP32側のローカルATT MTUは185に設定します。Windows HID-over-GATTではvendor input reportのCCCDが自動購読されない場合があるため、この接続専用Characteristicはnotificationを既定有効にします。
+
+## フレーム
+
+63-byte bodyは次の構成です。
+
+| Offset | 内容 |
+| --- | --- |
+| 0 | channel。RPCは `2` |
+| 1 | このreport内のpayload長（0〜61） |
+| 2〜62 | UTF-8 JSON断片と0 padding |
+
+デバイスからホストへ送るJSONは末尾へ改行を追加し、最大61 bytesずつ通知します。ホストからデバイスへのJSONは改行なしで分割されるため、ArduinoJsonの `IncompleteInput` を利用して完全なJSONになるまで再構成します。入力は4096 bytesで打ち切り、破損・過大入力でメモリを消費し続けないようにしています。
+
+## RPC
+
+ホスト要求には `method`、`params`、`id` が入り、応答は同じ `id` と `result` または `error` を返します。
+照明系の成功応答は `result: true`、`sys.version` は `{version: string}` を返します。BLE write callback内で直接notificationを送らず、メインループの送信queueから返すことでWindows BlueDroid上の再入を避けます。
+
+| ホストから受信 | 用途 |
+| --- | --- |
+| `sys.version` | ファームウェア版 |
+| `device.status` | profile、layer、battery |
+| `v.oai.thstatus` | 6つのAgent状態色とeffect |
+| `v.oai.rgbcfg` | ambient/key照明設定 |
+| `lights.preview` | 照明プレビュー |
+| `host.focused_app` | フォーカス中アプリ通知 |
+
+| ESP32から送信 | 用途 |
+| --- | --- |
+| `v.oai.hid` | Agent、Command、Encoderの押下・解放・回転 |
+| `v.oai.rad` | アナログスティック方向と距離 |
+
+永続設定、ファイルシステム、ブートローダーなどの破壊的RPCは実装していません。未知の要求にはJSON-RPC互換の `-32601 Method not found` を返します。
+
+## 互換性境界
+
+これはOpenAIまたはWork Louderが安定性を保証した公開APIではありません。ChatGPT Desktop更新後は、次を実機で再確認します。
+
+1. OSが `303A:8360` / Report 6として列挙すること。
+2. `device.status` の要求へ10秒以内に応答すること。
+3. 6 Agentの `v.oai.thstatus` が到達すること。
+4. 全操作のpress/releaseとEncoder stepが重複しないこと。
+5. 切断後にBLE advertisingが再開すること。
+
+## 実機検証
+
+2026-08-23にESP32-2432S028RとWindows版Codex Desktop `26.818.5229.0` の組み合わせで確認しました。Desktop同梱の `@worklouder/device-kit-oai` は `0.2.1`、依存する `@worklouder/wl-device-kit` は `0.2.2` です。
+
+確認結果:
+
+- WindowsのPnP状態が `OK` の `Codex Micro` としてBLE列挙された。
+- bonding後の再書き込み・再起動で自動再接続した。
+- `v.oai.rgbcfg` への応答notificationが成功した。
+- 応答後に `v.oai.thstatus` と `device.status` が順番に到達した。
+- 応答前に発生していた10秒周期の `v.oai.rgbcfg` 再送が停止した。
+- シリアル起動ログにNVS、JSON、GATT、heapのエラーがない。
+
+タッチ座標、各ボタンが実際のDesktop操作へ到達すること、切断後の再広告は目視・操作を伴うため、リリース前の手動確認項目として残します。
