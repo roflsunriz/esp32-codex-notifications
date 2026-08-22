@@ -5,6 +5,8 @@
 namespace {
 
 constexpr std::int16_t kContentBottom = 208;
+constexpr std::uint32_t kMinimumBootPressMs = 50;
+constexpr std::uint32_t kCalibrationHoldMs = 1500;
 constexpr const char* kAgentKeys[] = {"AG00", "AG01", "AG02", "AG03", "AG04", "AG05"};
 constexpr const char* kCommandKeys[] = {"ACT06", "ACT07", "ACT08", "ACT09", "ACT10", "ACT12"};
 
@@ -57,6 +59,24 @@ InputAction actionAt(Page page, std::int16_t x, std::int16_t y) {
   if (contains(x, y, 244, 42, 68, 64)) return {InputKind::EncoderStep, page, 1, 0.0F};
   if (contains(x, y, 166, 118, 146, 78)) return {InputKind::EncoderPress, page, -1, 0.0F};
   return {};
+}
+
+ScreenPoint orientPoint(ScreenPoint point, bool inverted) {
+  if (!inverted) return point;
+  return {static_cast<std::int16_t>(319 - point.x),
+          static_cast<std::int16_t>(239 - point.y)};
+}
+
+BootGesture bootGestureForDuration(std::uint32_t durationMs) {
+  if (durationMs < kMinimumBootPressMs) return BootGesture::None;
+  if (durationMs >= kCalibrationHoldMs) return BootGesture::CalibrateTouch;
+  return BootGesture::RotateScreen;
+}
+
+TouchTransition touchTransition(bool captured, bool hasPoint, bool contactActive) {
+  if (!captured && hasPoint) return TouchTransition::Press;
+  if (captured && !contactActive) return TouchTransition::Release;
+  return TouchTransition::None;
 }
 
 const char* protocolKeyFor(const InputAction& action) {

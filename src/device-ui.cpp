@@ -16,6 +16,7 @@ constexpr std::uint16_t kText = 0xFFFF;
 constexpr std::uint16_t kMuted = 0x8410;
 constexpr std::uint16_t kAccent = 0x2E73;
 constexpr std::uint32_t kCalibrationVersion = 1;
+constexpr std::uint32_t kOrientationVersion = 1;
 constexpr std::uint32_t kNotificationDurationMs = 4000;
 constexpr std::uint32_t kAnimationIntervalMs = 90;
 
@@ -34,15 +35,17 @@ std::int16_t mapAxis(std::int16_t raw, std::int16_t rawStart, std::int16_t rawEn
 
 DeviceUi::DeviceUi()
     : touchBus_(VSPI),
-      touch_(board::kTouchChipSelectPin, board::kTouchIrqPin),
+      touch_(board::kTouchChipSelectPin, board::kTouchIrqPin,
+             board::kTouchPressureMinimum),
       calibration_{board::kDefaultTouchLeft, board::kDefaultTouchRight,
                    board::kDefaultTouchTop, board::kDefaultTouchBottom} {}
 
 void DeviceUi::begin() {
   pinMode(board::kBacklightPin, OUTPUT);
   digitalWrite(board::kBacklightPin, HIGH);
+  loadOrientation();
   display_.init();
-  display_.setRotation(1);
+  applyOrientation();
   display_.setTextWrap(false);
   display_.fillScreen(kBackground);
 
@@ -86,15 +89,39 @@ void DeviceUi::saveCalibration() {
   preferences.end();
 }
 
+void DeviceUi::loadOrientation() {
+  Preferences preferences;
+  if (!preferences.begin("codex-ui", false)) return;
+  if (preferences.getUInt("version", 0) != kOrientationVersion) {
+    preferences.clear();
+    preferences.putUInt("version", kOrientationVersion);
+    preferences.putBool("inverted", false);
+  }
+  inverted_ = preferences.getBool("inverted", false);
+  preferences.end();
+}
+
+void DeviceUi::saveOrientation() {
+  Preferences preferences;
+  if (!preferences.begin("codex-ui", false)) return;
+  preferences.putUInt("version", kOrientationVersion);
+  preferences.putBool("inverted", inverted_);
+  preferences.end();
+}
+
+void DeviceUi::applyOrientation() {
+  display_.setRotation(inverted_ ? 3 : 1);
+}
+
 bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY) {
   const std::uint32_t timeout = millis() + 15000;
   while (static_cast<std::int32_t>(timeout - millis()) > 0) {
-    if (touch_.tirqTouched() && touch_.touched()) {
+    if (touch_.tirqTouched()) {
       std::int32_t sumX = 0;
       std::int32_t sumY = 0;
       std::int16_t samples = 0;
-      while (touch_.touched() && samples < 12) {
-        const TS_Point point = touch_.getPoint();
+      while (touch_.tirqTouched() && samples < 12) {
+        const SensitiveTouchPoint point = touch_.getPoint();
         if (point.z >= board::kTouchPressureMinimum) {
           sumX += point.x;
           sumY += point.y;
@@ -102,7 +129,10 @@ bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY) {
         }
         delay(12);
       }
-      while (touch_.touched()) delay(10);
+      while (touch_.tirqTouched()) {
+        touch_.getPoint();
+        delay(10);
+      }
       if (samples >= 4) {
         rawX = static_cast<std::int16_t>(sumX / samples);
         rawY = static_cast<std::int16_t>(sumY / samples);
@@ -120,6 +150,13 @@ void DeviceUi::calibrateTouch() {
   std::int16_t right = 0;
   std::int16_t bottom = 0;
 
+  // Calibration値は常にrotation 1の物理座標として保存する。
+  display_.setRotation(1);
+  const auto finish = [this]() {
+    applyOrientation();
+    drawAll();
+  };
+
   display_.fillScreen(kBackground);
   display_.setTextColor(kText, kBackground);
   display_.setTextDatum(MC_DATUM);
@@ -127,7 +164,7 @@ void DeviceUi::calibrateTouch() {
   display_.drawLine(14, 24, 34, 24, kAccent);
   display_.drawLine(24, 14, 24, 34, kAccent);
   if (!captureCalibrationPoint(left, top)) {
-    drawAll();
+    finish();
     return;
   }
 
@@ -136,7 +173,7 @@ void DeviceUi::calibrateTouch() {
   display_.drawLine(285, 215, 305, 215, kAccent);
   display_.drawLine(295, 205, 295, 225, kAccent);
   if (!captureCalibrationPoint(right, bottom)) {
-    drawAll();
+    finish();
     return;
   }
 
@@ -144,17 +181,21 @@ void DeviceUi::calibrateTouch() {
     calibration_ = {left, right, top, bottom};
     saveCalibration();
   }
-  drawAll();
+  finish();
 }
 
 bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
-  if (!touch_.tirqTouched() || !touch_.touched()) return false;
-  const TS_Point point = touch_.getPoint();
+  if (!touch_.tirqTouched()) return false;
+  const SensitiveTouchPoint point = touch_.getPoint();
   if (point.z < board::kTouchPressureMinimum) return false;
-  x = mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
-              board::kScreenWidth - 1);
-  y = mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
-              board::kScreenHeight - 1);
+  const ScreenPoint oriented = orientPoint(
+      {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
+               board::kScreenWidth - 1),
+       mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
+               board::kScreenHeight - 1)},
+      inverted_);
+  x = oriented.x;
+  y = oriented.y;
   return true;
 }
 
@@ -177,6 +218,15 @@ void DeviceUi::setPage(Page page) {
   page_ = page;
   pressed_ = false;
   drawAll();
+}
+
+void DeviceUi::toggleRotation() {
+  inverted_ = !inverted_;
+  saveOrientation();
+  applyOrientation();
+  pressed_ = false;
+  drawAll();
+  Serial.printf("UI rotation=%s\n", inverted_ ? "inverted" : "normal");
 }
 
 void DeviceUi::showPressed(const InputAction& action, bool pressed) {

@@ -27,6 +27,24 @@ OpenAI Docsは製品の利用方法と観測可能な状態を説明していま
 BLE HOGPではReport IDがCharacteristicの識別に使われ、通常は63-byte bodyに含まれません。互換ブリッジを考慮し、受信側は先頭にReport ID 6が付く64-byte形式も受け入れます。
 63-byte input notificationを切り詰めず送れるよう、ESP32側のローカルATT MTUは185に設定します。Windows HID-over-GATTではvendor input reportのCCCDが自動購読されない場合があるため、この接続専用Characteristicはnotificationを既定有効にします。
 
+## 対象基板のUSB境界
+
+OpenAI Docsでは公式Codex MicroがUSB-CまたはBluetoothで接続できると案内されています。一方、このプロジェクトのESP32-2432S028RはESP-WROOM-32とCH340 USB-UART変換器の構成で、ESP32-S2/S3のようなUSB Device peripheralを持ちません。
+
+Codex Desktop `26.818.5229.0` 同梱SDKの通常デバイス探索は次をすべて要求します。
+
+- HID Vendor ID `0x303A`
+- DEVICE_REGISTRYに存在するProduct ID
+- Usage Page `0xFF00`
+
+シリアルポート探索はVID `0x303A`のファームウェア書き込み用ブートローダーだけを対象にします。実機のCH340は別のVID/PIDであり、ESP32ファームウェアからCH340のUSB descriptorは変更できません。このため、現在の基板へUSB-only接続を追加するにはPC側仮想HIDブリッジが必要で、ファームウェア単体の機能としては成立しません。
+
+## 画面回転
+
+標準基板には姿勢センサーがないため、重力方向の自動検出は行いません。物理BOOTボタンの短押しでTFTをrotation 1/3間で切り替え、タッチ座標を `(319-x, 239-y)` へ変換します。向きはバージョン付きPreferencesへ保存します。タッチ調整値は常にrotation 1の物理座標で保持し、表示方向を変えても再調整を不要にしています。
+
+付属ペンでの押下を安定させるため、Paul StoffregenのMIT版XPT2046ドライバーを閾値可変にしたローカル実装を使います。押下閾値は75、解放閾値は25で、固定閾値400の上流版より軽い筆圧を取得します。読取間隔は1ms、メインループ待機は2msとし、BLE送信queueより先にタッチを読み取って短い押下の取りこぼしを減らします。物理BOOTボタンを1.5秒以上押して離すと、実行中に2点調整を開始できます。
+
 ## フレーム
 
 63-byte bodyは次の構成です。
@@ -82,5 +100,8 @@ BLE HOGPではReport IDがCharacteristicの識別に使われ、通常は63-byte
 - 応答後に `v.oai.thstatus` と `device.status` が順番に到達した。
 - 応答前に発生していた10秒周期の `v.oai.rgbcfg` 再送が停止した。
 - シリアル起動ログにNVS、JSON、GATT、heapのエラーがない。
+- 物理BOOT短押しで180度回転し、再起動後も向きが保持された。
+- 押下閾値75と2点調整後、付属ペンで下部タブと6つのAgent領域を個別に操作できた。
+- 圧力が揺れてもIRQ解放までは1接触として保持され、タブ切替後の上部ボタンへ入力が漏れなかった。
 
-タッチ座標、各ボタンが実際のDesktop操作へ到達すること、切断後の再広告は目視・操作を伴うため、リリース前の手動確認項目として残します。
+切断後の再広告は目視・操作を伴うため、リリース前の手動確認項目として残します。

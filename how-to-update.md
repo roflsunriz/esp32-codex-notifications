@@ -10,7 +10,7 @@
 
 1. OpenAIの [Codex Micro公式文書](https://learn.chatgpt.com/docs/features/codex-micro) で操作仕様と状態の意味を確認します。
 2. `docs/protocol.md` に列挙した公開実装の最新コードを確認し、観測事実と推測を分けます。
-3. `platformio.ini` のESP32 platform、ArduinoJson、TFT_eSPI、XPT2046_Touchscreenを更新します。
+3. `platformio.ini` のESP32 platform、ArduinoJson、TFT_eSPIを更新します。XPT2046は `lib/sensitive-xpt2046` のローカル実装と上流v1.4の差分を確認します。
 4. lockfile相当の `.pio` 解決結果だけに依存せず、版を `platformio.ini` に固定します。
 5. 次の検証を実行します。
 
@@ -23,7 +23,8 @@ pio run -e cyd
 
 6. 実機へ書き込み、Bluetoothの既存ペアリングを削除して再ペアリングします。
 7. `docs/protocol.md` の互換性境界5項目を実機確認します。
-8. 結果と意図を `CHANGELOG.md` の `Unreleased` へ記載します。
+8. 物理BOOTボタンを短く押し、表示、タッチ位置、再起動後の向きが一致することを確認します。1.5秒以上の長押しで2点調整が起動することも確認します。
+9. 結果と意図を `CHANGELOG.md` の `Unreleased` へ記載します。
 
 ## 通常の書き込み
 

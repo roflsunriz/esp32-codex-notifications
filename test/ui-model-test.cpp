@@ -31,6 +31,35 @@ void testTabs() {
   require(actionAt(Page::Agents, 270, 224).page == Page::Navigate, "Navigateタブ");
 }
 
+void testRotationControlAndCoordinates() {
+  const ScreenPoint normal = orientPoint({23, 41}, false);
+  require(normal.x == 23 && normal.y == 41, "通常向きの座標維持");
+  const ScreenPoint inverted = orientPoint({23, 41}, true);
+  require(inverted.x == 296 && inverted.y == 198, "180度回転座標");
+  const ScreenPoint restored = orientPoint(inverted, true);
+  require(restored.x == 23 && restored.y == 41, "180度回転の可逆性");
+
+  require(bootGestureForDuration(49) == BootGesture::None, "BOOTノイズ除外");
+  require(bootGestureForDuration(50) == BootGesture::RotateScreen, "BOOT短押し");
+  require(bootGestureForDuration(1499) == BootGesture::RotateScreen,
+          "BOOT短押し上限");
+  require(bootGestureForDuration(1500) == BootGesture::CalibrateTouch,
+          "BOOT長押し調整");
+}
+
+void testTouchContactIsLockedUntilPhysicalRelease() {
+  require(touchTransition(false, true, true) == TouchTransition::Press,
+          "接触開始で一度だけ押下");
+  require(touchTransition(true, true, true) == TouchTransition::None,
+          "同じ接触の座標更新を無視");
+  require(touchTransition(true, false, true) == TouchTransition::None,
+          "圧力揺れを解放扱いしない");
+  require(touchTransition(true, false, false) == TouchTransition::Release,
+          "IRQ解放でのみリリース");
+  require(touchTransition(false, false, false) == TouchTransition::None,
+          "非接触を維持");
+}
+
 void testCommandGridAndProtocolIds() {
   const char* expected[] = {"ACT06", "ACT07", "ACT08", "ACT09", "ACT10", "ACT12"};
   for (int index = 0; index < 6; ++index) {
@@ -90,10 +119,12 @@ void testStatusColors() {
 int main() {
   testAgentGrid();
   testTabs();
+  testRotationControlAndCoordinates();
+  testTouchContactIsLockedUntilPhysicalRelease();
   testCommandGridAndProtocolIds();
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
   testStatusColors();
-  std::cout << "ui-model: 6 tests passed\n";
+  std::cout << "ui-model: 8 tests passed\n";
   return 0;
 }

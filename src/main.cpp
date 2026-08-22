@@ -12,18 +12,24 @@ DeviceUi ui;
 InputAction activeAction;
 bool touchActive = false;
 bool lastConnected = false;
+bool bootRawHigh = true;
+bool bootStableHigh = true;
+bool bootGestureArmed = false;
+std::uint32_t bootChangedAt = 0;
+std::uint32_t bootPressedAt = 0;
+
+constexpr std::uint32_t kBootDebounceMs = 30;
 
 void press(const InputAction& action) {
+  activeAction = action;
+  touchActive = true;
+  Serial.printf("UI input kind=%u index=%d\n", static_cast<unsigned>(action.kind),
+                static_cast<int>(action.index));
   if (action.kind == InputKind::None) return;
   if (action.kind == InputKind::PageSwitch) {
-    activeAction = action;
-    touchActive = true;
     ui.setPage(action.page);
     return;
   }
-
-  activeAction = action;
-  touchActive = true;
   ui.showPressed(action, true);
   if (action.kind == InputKind::AgentKey) {
     codex.sendKey(protocolKeyFor(action), 1, action.index);
@@ -38,6 +44,37 @@ void press(const InputAction& action) {
   }
 }
 
+void initializeBootGesture() {
+  bootRawHigh = digitalRead(board::kBootButtonPin) == HIGH;
+  bootStableHigh = bootRawHigh;
+  bootGestureArmed = bootStableHigh;
+  bootChangedAt = millis();
+  bootPressedAt = 0;
+}
+
+void updateBootGesture(std::uint32_t now) {
+  const bool rawHigh = digitalRead(board::kBootButtonPin) == HIGH;
+  if (rawHigh != bootRawHigh) {
+    bootRawHigh = rawHigh;
+    bootChangedAt = now;
+  }
+  if (rawHigh == bootStableHigh || now - bootChangedAt < kBootDebounceMs) return;
+
+  bootStableHigh = rawHigh;
+  if (!bootStableHigh) {
+    if (bootGestureArmed) bootPressedAt = now;
+    return;
+  }
+
+  if (bootPressedAt != 0) {
+    const BootGesture gesture = bootGestureForDuration(now - bootPressedAt);
+    if (gesture == BootGesture::RotateScreen) ui.toggleRotation();
+    if (gesture == BootGesture::CalibrateTouch) ui.calibrateTouch();
+  }
+  bootPressedAt = 0;
+  bootGestureArmed = true;
+}
+
 void release() {
   if (!touchActive) return;
   if (activeAction.kind == InputKind::AgentKey) {
@@ -49,7 +86,7 @@ void release() {
   } else if (activeAction.kind == InputKind::Joystick) {
     codex.sendJoystick(activeAction.angle, 0.0F);
   }
-  ui.showPressed(activeAction, false);
+  if (activeAction.kind != InputKind::None) ui.showPressed(activeAction, false);
   activeAction = {};
   touchActive = false;
 }
@@ -64,18 +101,22 @@ void setup() {
 
   ui.begin();
   if (calibrate) ui.calibrateTouch();
+  initializeBootGesture();
   codex.begin();
   ui.setState(codex.snapshot(), millis());
   Serial.println("CODEX_CYD_READY");
 }
 
 void loop() {
-  codex.poll();
+  updateBootGesture(millis());
   std::int16_t x = 0;
   std::int16_t y = 0;
   const bool touched = ui.readTouch(x, y);
-  if (touched && !touchActive) press(actionAt(ui.page(), x, y));
-  if (!touched && touchActive) release();
+  const bool contactActive = ui.touchContactActive();
+  const TouchTransition transition = touchTransition(touchActive, touched, contactActive);
+  if (transition == TouchTransition::Press) press(actionAt(ui.page(), x, y));
+  if (transition == TouchTransition::Release) release();
+  codex.poll();
 
   const CodexMicroState state = codex.snapshot();
   if (state.dirty || state.connected != lastConnected) {
@@ -83,5 +124,5 @@ void loop() {
     ui.setState(state, millis());
   }
   ui.tick(millis());
-  delay(8);
+  delay(2);
 }

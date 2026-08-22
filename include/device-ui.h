@@ -2,7 +2,7 @@
 
 #include <SPI.h>
 #include <TFT_eSPI.h>
-#include <XPT2046_Touchscreen.h>
+#include <sensitive-xpt2046.h>
 
 #include <array>
 #include <cstdint>
@@ -17,8 +17,10 @@ class DeviceUi {
   void begin();
   void calibrateTouch();
   bool readTouch(std::int16_t& x, std::int16_t& y);
+  bool touchContactActive() const { return touch_.tirqTouched(); }
   void setState(const CodexMicroState& state, std::uint32_t now);
   void setPage(Page page);
+  void toggleRotation();
   Page page() const { return page_; }
   void showPressed(const InputAction& action, bool pressed);
   void tick(std::uint32_t now);
@@ -33,6 +35,9 @@ class DeviceUi {
 
   void loadCalibration();
   void saveCalibration();
+  void loadOrientation();
+  void saveOrientation();
+  void applyOrientation();
   bool captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY);
   void drawAll();
   void drawHeader();
@@ -54,13 +59,14 @@ class DeviceUi {
 
   TFT_eSPI display_;
   SPIClass touchBus_;
-  XPT2046_Touchscreen touch_;
+  SensitiveXpt2046 touch_;
   TouchCalibration calibration_;
   CodexMicroState state_;
   std::array<StatusKind, 6> statuses_{};
   Page page_ = Page::Agents;
   InputAction pressedAction_;
   bool pressed_ = false;
+  bool inverted_ = false;
   std::int8_t notificationAgent_ = -1;
   StatusKind notificationStatus_ = StatusKind::Unassigned;
   std::uint32_t notificationUntil_ = 0;

@@ -12,7 +12,11 @@ ESP32-2432S028Rの表示・タッチ配線は、MIT Licenseで公開されてい
 
 Copyright (c) 2023 Brian Lough
 
-両ライセンスの条件を満たすため、本リポジトリの `LICENSE` とこの通知を配布物へ含めてください。
+`lib/sensitive-xpt2046` はMIT Licenseで公開されている [PaulStoffregen/XPT2046_Touchscreen](https://github.com/PaulStoffregen/XPT2046_Touchscreen) v1.4を基に、圧力閾値を設定できるよう変更しています。
+
+Copyright (c) 2015 Paul Stoffregen
+
+各ライセンスの条件を満たすため、本リポジトリの `LICENSE` とこの通知を配布物へ含めてください。
 
 ## 互換性と安全性
 
