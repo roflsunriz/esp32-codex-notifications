@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-23
+
+### Fixed
+
+- 黄色のダイヤル操作で画面上の向きと値の変化を一致させるため、左ボタンを減少、右ボタンを増加へ修正した。
+
 ## [0.1.0] - 2026-08-23
 
 ### Added
@@ -38,5 +44,6 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/roflsunriz/esp32-codex-notifications/releases/tag/v0.1.0

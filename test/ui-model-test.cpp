@@ -96,15 +96,15 @@ void testNavigationAngles() {
   require(std::abs(actionAt(Page::Navigate, 53, 174).angle - 0.25F) < 0.001F, "下方向");
   require(std::abs(actionAt(Page::Navigate, 37, 118).angle - 0.50F) < 0.001F, "左方向");
   require(std::abs(actionAt(Page::Navigate, 111, 118).angle) < 0.001F, "右方向");
-  const InputAction counterclockwise = actionAt(Page::Navigate, 200, 74);
-  const InputAction clockwise = actionAt(Page::Navigate, 278, 74);
+  const InputAction decrement = actionAt(Page::Navigate, 200, 74);
+  const InputAction increment = actionAt(Page::Navigate, 278, 74);
   const InputAction press = actionAt(Page::Navigate, 239, 157);
-  require(counterclockwise.kind == InputKind::EncoderStep &&
-              std::strcmp(protocolKeyFor(counterclockwise), "ENC_CC") == 0,
-          "ダイヤル左回転");
-  require(clockwise.kind == InputKind::EncoderStep &&
-              std::strcmp(protocolKeyFor(clockwise), "ENC_CW") == 0,
-          "ダイヤル右回転");
+  require(decrement.kind == InputKind::EncoderStep &&
+              std::strcmp(protocolKeyFor(decrement), "ENC_CW") == 0,
+          "左ボタンで値を減らす");
+  require(increment.kind == InputKind::EncoderStep &&
+              std::strcmp(protocolKeyFor(increment), "ENC_CC") == 0,
+          "右ボタンで値を増やす");
   require(press.kind == InputKind::EncoderPress &&
               std::strcmp(protocolKeyFor(press), "ENC_CLK") == 0,
           "ダイヤル押下");

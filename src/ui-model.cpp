@@ -116,8 +116,8 @@ const char* protocolKeyFor(const InputAction& action) {
   if (action.kind == InputKind::CommandKey && action.index >= 0 && action.index < 6) {
     return kCommandKeys[action.index];
   }
-  if (action.kind == InputKind::EncoderStep && action.index == 0) return "ENC_CC";
-  if (action.kind == InputKind::EncoderStep && action.index == 1) return "ENC_CW";
+  if (action.kind == InputKind::EncoderStep && action.index == 0) return "ENC_CW";
+  if (action.kind == InputKind::EncoderStep && action.index == 1) return "ENC_CC";
   if (action.kind == InputKind::EncoderPress) return "ENC_CLK";
   return nullptr;
 }
