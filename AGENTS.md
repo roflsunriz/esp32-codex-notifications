@@ -11,7 +11,11 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 
 3. 読み取りに失敗した場合、出力が省略された場合、または末尾まで読めたことを確認できない場合は、一切の作業を開始せず、パスとシンボリックリンク先を確認して全文を再取得する。必要なら分割して末尾まで読む。
 4. 全文を読了するまで、ローカル `AGENTS.md` だけを根拠に作業を続けてはならない。読了後は `COMMON-AGENTS.md` を最優先の指針とし、読了直後の最初の進捗報告で全文を読了したことを明示する。
-   このファイルでは `amazon-dp-urls` 固有の補足だけを記載する。
+   このファイルでは `esp32-codex-notifications` 固有の補足だけを記載する。
+
+## 目的
+- ChatGPT (Codex) Desktop App の通知類や操作を簡便にするため、esp32-2432s028r ili9341 esp-wroom-32 tft lcd 開発ボード に操作ボタンや通知などを表示する。
+- Github上の他公開リポジトリで既に Work Louder Codex Micro / Creators Micro 2 と ChatGPT (Codex) Desktop App の公式連携の非公開APIを解析した結果があるのでそれを事前に調べてその結果を元に esp32 に実装する。
 
 ## Environment
 <必要に応じて適宜書き足すこと。>
