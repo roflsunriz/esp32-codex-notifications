@@ -47,7 +47,6 @@ void DeviceUi::begin() {
   display_.init();
   applyOrientation();
   display_.setTextWrap(false);
-  display_.fillScreen(kBackground);
 
   touchBus_.begin(board::kTouchClockPin, board::kTouchMisoPin, board::kTouchMosiPin,
                   board::kTouchChipSelectPin);
@@ -227,9 +226,18 @@ void DeviceUi::setDisplayAwake(bool awake) {
 }
 
 void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {
+  const bool connectionChanged = state_.connected != state.connected;
+  const std::int8_t previousNotificationAgent = notificationAgent_;
+  const StatusKind previousNotificationStatus = notificationStatus_;
+  std::array<bool, 6> agentChanged{};
   for (std::size_t index = 0; index < state.threads.size(); ++index) {
     const StatusKind next =
         statusKindForColor(state.threads[index].color, state.threads[index].brightness);
+    const ThreadLight& previous = state_.threads[index];
+    const ThreadLight& current = state.threads[index];
+    agentChanged[index] = statuses_[index] != next || previous.color != current.color ||
+                          previous.brightness != current.brightness ||
+                          previous.effect != current.effect;
     if (next != statuses_[index] && isNotificationStatus(next)) {
       notificationAgent_ = static_cast<std::int8_t>(index);
       notificationStatus_ = next;
@@ -240,13 +248,34 @@ void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {
   state_ = state;
   const bool powerChanged = displayAwake_ != state.displayAwake;
   setDisplayAwake(state.displayAwake);
-  if (!powerChanged) drawAll();
+  if (powerChanged || !displayAwake_) return;
+
+  display_.startWrite();
+  if (previousNotificationAgent != notificationAgent_ ||
+      previousNotificationStatus != notificationStatus_) {
+    drawNotification();
+  }
+  if (connectionChanged) drawConnection();
+  if (page_ == Page::Agents) {
+    for (std::uint8_t index = 0; index < agentChanged.size(); ++index) {
+      if (agentChanged[index]) drawAgent(index);
+    }
+  }
+  display_.endWrite();
 }
 
 void DeviceUi::setPage(Page page) {
+  if (page_ == page) return;
+  const Page previousPage = page_;
   page_ = page;
   pressed_ = false;
-  if (displayAwake_) drawAll();
+  if (!displayAwake_) return;
+
+  display_.startWrite();
+  drawContent();
+  drawTab(static_cast<std::uint8_t>(previousPage));
+  drawTab(static_cast<std::uint8_t>(page_));
+  display_.endWrite();
 }
 
 void DeviceUi::toggleRotation() {
@@ -259,36 +288,58 @@ void DeviceUi::toggleRotation() {
 }
 
 void DeviceUi::showPressed(const InputAction& action, bool pressed) {
+  if (action.kind == InputKind::None || action.kind == InputKind::PageSwitch) return;
   pressedAction_ = action;
   pressed_ = pressed;
-  if (displayAwake_) drawAll();
+  if (displayAwake_) {
+    display_.startWrite();
+    drawPressedAction(action);
+    display_.endWrite();
+  }
+  if (!pressed) pressedAction_ = {};
 }
 
 void DeviceUi::tick(std::uint32_t now) {
   if (notificationAgent_ >= 0 &&
       static_cast<std::int32_t>(now - notificationUntil_) >= 0) {
     notificationAgent_ = -1;
-    if (displayAwake_) drawHeader();
+    if (displayAwake_) {
+      display_.startWrite();
+      drawNotification();
+      display_.endWrite();
+    }
   }
   if (displayAwake_ && page_ == Page::Agents &&
       now - lastAnimation_ >= kAnimationIntervalMs) {
-    bool animated = false;
-    for (const ThreadLight& light : state_.threads) {
-      animated = animated || light.effect == "breath";
+    bool transactionStarted = false;
+    for (std::uint8_t index = 0; index < state_.threads.size(); ++index) {
+      if (state_.threads[index].effect != "breath") continue;
+      if (!transactionStarted) {
+        display_.startWrite();
+        transactionStarted = true;
+      }
+      drawAgent(index);
     }
-    if (animated) drawAgents();
+    if (transactionStarted) display_.endWrite();
     lastAnimation_ = now;
   }
 }
 
 void DeviceUi::drawAll() {
   if (!displayAwake_) return;
+  display_.startWrite();
   display_.fillScreen(kBackground);
   drawHeader();
+  drawContent();
+  drawTabs();
+  display_.endWrite();
+}
+
+void DeviceUi::drawContent() {
+  display_.fillRect(0, 28, 320, 180, kBackground);
   if (page_ == Page::Agents) drawAgents();
   if (page_ == Page::Commands) drawCommands();
   if (page_ == Page::Navigate) drawNavigate();
-  drawTabs();
 }
 
 void DeviceUi::drawHeader() {
@@ -297,17 +348,28 @@ void DeviceUi::drawHeader() {
   display_.setTextColor(kText, kBackground);
   display_.drawString("CODEX", 8, 14, 2);
 
+  drawNotification();
+  drawConnection();
+}
+
+void DeviceUi::drawNotification() {
+  display_.fillRect(124, 0, 116, 28, kBackground);
+
   if (notificationAgent_ >= 0) {
     const ThreadLight& light = state_.threads[notificationAgent_];
     const std::uint16_t color = lightColor(light);
     display_.fillRoundRect(128, 3, 106, 22, 5, kPanel);
     display_.setTextDatum(MC_DATUM);
+    display_.setTextColor(kText, kPanel);
     char label[8];
     snprintf(label, sizeof(label), "A%d", static_cast<int>(notificationAgent_) + 1);
     display_.drawString(label, 153, 14, 2);
     drawStatusIcon(notificationStatus_, 207, 14, color);
   }
+}
 
+void DeviceUi::drawConnection() {
+  display_.fillRect(280, 0, 40, 28, kBackground);
   const std::uint16_t connectionColor = state_.connected ? 0x07E0 : 0xF800;
   display_.drawLine(286, 8, 286, 20, connectionColor);
   display_.drawLine(286, 8, 294, 14, connectionColor);
@@ -318,35 +380,37 @@ void DeviceUi::drawHeader() {
 }
 
 void DeviceUi::drawTabs() {
-  for (std::uint8_t index = 0; index < 3; ++index) {
-    const std::int16_t x = static_cast<std::int16_t>(index * 107);
-    const std::int16_t width = index == 2 ? 106 : 107;
-    const bool selected = static_cast<std::uint8_t>(page_) == index;
-    display_.fillRect(x, 208, width, 32, selected ? kAccent : kPanel);
-    const std::uint16_t color = selected ? kText : kMuted;
-    const std::int16_t center = x + width / 2;
-    if (index == 0) {
-      for (int row = 0; row < 2; ++row) {
-        for (int column = 0; column < 3; ++column) {
-          display_.drawRect(center - 14 + column * 10, 216 + row * 9, 7, 6, color);
-        }
+  for (std::uint8_t index = 0; index < 3; ++index) drawTab(index);
+}
+
+void DeviceUi::drawTab(std::uint8_t index) {
+  const std::int16_t x = static_cast<std::int16_t>(index * 107);
+  const std::int16_t width = index == 2 ? 106 : 107;
+  const bool selected = static_cast<std::uint8_t>(page_) == index;
+  display_.fillRect(x, 208, width, 32, selected ? kAccent : kPanel);
+  const std::uint16_t color = selected ? kText : kMuted;
+  const std::int16_t center = x + width / 2;
+  if (index == 0) {
+    for (int row = 0; row < 2; ++row) {
+      for (int column = 0; column < 3; ++column) {
+        display_.drawRect(center - 14 + column * 10, 216 + row * 9, 7, 6, color);
       }
-    } else if (index == 1) {
-      const std::int16_t pointsX[] = {
-          static_cast<std::int16_t>(center + 2), static_cast<std::int16_t>(center - 5),
-          center, static_cast<std::int16_t>(center - 3),
-          static_cast<std::int16_t>(center + 7), static_cast<std::int16_t>(center + 2)};
-      const std::int16_t pointsY[] = {212, 224, 224, 236, 222, 222};
-      for (int point = 0; point < 5; ++point) {
-        display_.drawLine(pointsX[point], pointsY[point], pointsX[point + 1],
-                          pointsY[point + 1], color);
-      }
-    } else {
-      drawArrow(center, 224, 0, -1, color);
-      drawArrow(center, 224, 1, 0, color);
-      drawArrow(center, 224, 0, 1, color);
-      drawArrow(center, 224, -1, 0, color);
     }
+  } else if (index == 1) {
+    const std::int16_t pointsX[] = {
+        static_cast<std::int16_t>(center + 2), static_cast<std::int16_t>(center - 5),
+        center, static_cast<std::int16_t>(center - 3),
+        static_cast<std::int16_t>(center + 7), static_cast<std::int16_t>(center + 2)};
+    const std::int16_t pointsY[] = {212, 224, 224, 236, 222, 222};
+    for (int point = 0; point < 5; ++point) {
+      display_.drawLine(pointsX[point], pointsY[point], pointsX[point + 1],
+                        pointsY[point + 1], color);
+    }
+  } else {
+    drawArrow(center, 224, 0, -1, color);
+    drawArrow(center, 224, 1, 0, color);
+    drawArrow(center, 224, 0, 1, color);
+    drawArrow(center, 224, -1, 0, color);
   }
 }
 
@@ -415,13 +479,15 @@ void DeviceUi::drawStatusIcon(StatusKind status, std::int16_t x, std::int16_t y,
 }
 
 void DeviceUi::drawCommands() {
-  for (std::uint8_t index = 0; index < 6; ++index) {
-    const std::int16_t x = 4 + (index % 3) * 106;
-    const std::int16_t y = 32 + (index / 3) * 87;
-    const bool pressed = actionIsPressed(InputKind::CommandKey, index);
-    drawButton(x, y, 100, 80, pressed, index == 1 ? 0x07E0 : kAccent);
-    drawCommandIcon(index, x + 50, y + 40, kText);
-  }
+  for (std::uint8_t index = 0; index < 6; ++index) drawCommand(index);
+}
+
+void DeviceUi::drawCommand(std::uint8_t index) {
+  const std::int16_t x = 4 + (index % 3) * 106;
+  const std::int16_t y = 32 + (index / 3) * 87;
+  const bool pressed = actionIsPressed(InputKind::CommandKey, index);
+  drawButton(x, y, 100, 80, pressed, index == 1 ? 0x07E0 : kAccent);
+  drawCommandIcon(index, x + 50, y + 40, kText);
 }
 
 void DeviceUi::drawCommandIcon(std::uint8_t index, std::int16_t x, std::int16_t y,
@@ -463,27 +529,51 @@ void DeviceUi::drawArrow(std::int16_t x, std::int16_t y, std::int8_t dx,
 }
 
 void DeviceUi::drawNavigate() {
-  drawButton(18, 38, 70, 48, actionIsPressed(InputKind::Joystick) &&
-                                  pressedAction_.angle == 0.75F,
-             kAccent);
-  drawArrow(53, 62, 0, -1, kText);
-  drawButton(18, 150, 70, 48, actionIsPressed(InputKind::Joystick) &&
-                                   pressedAction_.angle == 0.25F,
-             kAccent);
-  drawArrow(53, 174, 0, 1, kText);
-  drawButton(2, 94, 70, 48, actionIsPressed(InputKind::Joystick) &&
-                                 pressedAction_.angle == 0.50F,
-             kAccent);
-  drawArrow(37, 118, -1, 0, kText);
-  drawButton(76, 94, 70, 48, actionIsPressed(InputKind::Joystick) &&
-                                  pressedAction_.angle == 0.00F,
-             kAccent);
-  drawArrow(111, 118, 1, 0, kText);
+  drawJoystickButton(18, 38, 0.75F, 0, -1);
+  drawJoystickButton(18, 150, 0.25F, 0, 1);
+  drawJoystickButton(2, 94, 0.50F, -1, 0);
+  drawJoystickButton(76, 94, 0.00F, 1, 0);
+  drawEncoderStepButton(0, 166, -1);
+  drawEncoderStepButton(1, 244, 1);
+  drawEncoderPressButton();
+}
 
-  drawButton(166, 42, 68, 64, actionIsPressed(InputKind::EncoderStep, 0), 0xFFE0);
-  drawArrow(200, 74, -1, 0, kText);
-  drawButton(244, 42, 68, 64, actionIsPressed(InputKind::EncoderStep, 1), 0xFFE0);
-  drawArrow(278, 74, 1, 0, kText);
+void DeviceUi::drawPressedAction(const InputAction& action) {
+  if (action.page != page_) return;
+  if (action.kind == InputKind::AgentKey && action.index >= 0 && action.index < 6) {
+    drawAgent(static_cast<std::uint8_t>(action.index));
+  } else if (action.kind == InputKind::CommandKey && action.index >= 0 &&
+             action.index < 6) {
+    drawCommand(static_cast<std::uint8_t>(action.index));
+  } else if (action.kind == InputKind::Joystick) {
+    if (action.angle == 0.75F) drawJoystickButton(18, 38, 0.75F, 0, -1);
+    if (action.angle == 0.25F) drawJoystickButton(18, 150, 0.25F, 0, 1);
+    if (action.angle == 0.50F) drawJoystickButton(2, 94, 0.50F, -1, 0);
+    if (action.angle == 0.00F) drawJoystickButton(76, 94, 0.00F, 1, 0);
+  } else if (action.kind == InputKind::EncoderStep && action.index >= 0 &&
+             action.index < 2) {
+    const std::uint8_t index = static_cast<std::uint8_t>(action.index);
+    drawEncoderStepButton(index, index == 0 ? 166 : 244, index == 0 ? -1 : 1);
+  } else if (action.kind == InputKind::EncoderPress) {
+    drawEncoderPressButton();
+  }
+}
+
+void DeviceUi::drawJoystickButton(std::int16_t x, std::int16_t y, float angle,
+                                  std::int8_t dx, std::int8_t dy) {
+  drawButton(x, y, 70, 48,
+             actionIsPressed(InputKind::Joystick) && pressedAction_.angle == angle,
+             kAccent);
+  drawArrow(x + 35, y + 24, dx, dy, kText);
+}
+
+void DeviceUi::drawEncoderStepButton(std::uint8_t index, std::int16_t x,
+                                     std::int8_t dx) {
+  drawButton(x, 42, 68, 64, actionIsPressed(InputKind::EncoderStep, index), 0xFFE0);
+  drawArrow(x + 34, 74, dx, 0, kText);
+}
+
+void DeviceUi::drawEncoderPressButton() {
   drawButton(166, 118, 146, 78, actionIsPressed(InputKind::EncoderPress), 0xFFE0);
   display_.drawCircle(239, 157, 25, kText);
   display_.drawCircle(239, 157, 16, kMuted);

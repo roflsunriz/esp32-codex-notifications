@@ -42,12 +42,23 @@ class DeviceUi {
   void applyOrientation();
   bool captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY);
   void drawAll();
+  void drawContent();
   void drawHeader();
+  void drawNotification();
+  void drawConnection();
   void drawTabs();
+  void drawTab(std::uint8_t index);
   void drawAgents();
   void drawAgent(std::uint8_t index);
   void drawCommands();
+  void drawCommand(std::uint8_t index);
   void drawNavigate();
+  void drawPressedAction(const InputAction& action);
+  void drawJoystickButton(std::int16_t x, std::int16_t y, float angle,
+                          std::int8_t dx, std::int8_t dy);
+  void drawEncoderStepButton(std::uint8_t index, std::int16_t x,
+                             std::int8_t dx);
+  void drawEncoderPressButton();
   void drawButton(std::int16_t x, std::int16_t y, std::int16_t width,
                   std::int16_t height, bool pressed, std::uint16_t border);
   void drawStatusIcon(StatusKind status, std::int16_t x, std::int16_t y,

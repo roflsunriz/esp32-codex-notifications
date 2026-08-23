@@ -12,7 +12,7 @@ target_include_directories(ui-model-test PRIVATE include)
 target_compile_features(ui-model-test PRIVATE cxx_std_17)
 
 if(MSVC)
-  target_compile_options(ui-model-test PRIVATE /W4 /WX /utf-8)
+  target_compile_options(ui-model-test PRIVATE /W4 /WX /utf-8 /EHsc)
 else()
   target_compile_options(ui-model-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()

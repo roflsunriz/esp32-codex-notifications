@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-23
+
+### Fixed
+
+- ボタン押下、タブ切替、Codexからのステータス通知で画面全体が一度消えて見える問題を防ぐため、通常操作を対象部品だけの差分描画へ変更した。
+- 呼吸エフェクト中の不要な描画負荷を抑えるため、全Agentを一括更新せず、呼吸中のAgentだけを再描画するようにした。
+
 ## [0.3.0] - 2026-08-23
 
 ### Added
@@ -63,7 +70,8 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.0...v0.1.1
