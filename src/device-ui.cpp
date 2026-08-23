@@ -508,10 +508,12 @@ void DeviceUi::drawCommandIcon(std::uint8_t index, std::int16_t x, std::int16_t 
     drawArrow(x + 12, y - 12, 1, 0, color);
     drawArrow(x + 12, y + 12, 1, 0, color);
   } else if (index == 4) {
-    display_.drawRoundRect(x - 7, y - 16, 14, 24, 7, color);
-    display_.drawArc(x, y, 16, 12, 0, 180, color, kPanel);
-    display_.drawFastVLine(x, y + 12, 8, color);
-    display_.drawFastHLine(x - 8, y + 20, 16, color);
+    display_.fillRoundRect(x - 6, y - 17, 13, 25, 6, color);
+    display_.fillRect(x - 14, y - 2, 2, 5, color);
+    display_.fillRect(x + 13, y - 2, 2, 5, color);
+    display_.drawArc(x, y + 2, 14, 13, 270, 90, color, kPanel, false);
+    display_.fillRect(x, y + 16, 2, 6, color);
+    display_.fillRect(x - 8, y + 21, 17, 2, color);
   } else {
     display_.fillTriangle(x - 15, y - 13, x + 16, y, x - 15, y + 13, color);
   }

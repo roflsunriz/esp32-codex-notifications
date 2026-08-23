@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-23
+
+### Fixed
+
+- 音声操作を迷わず選べるように、誤った左半円と過度な線幅で崩れていたマイクアイコンを、塗りつぶした本体と下向きU字アームを持つ左右対称な形へ修正した。
+
 ## [0.3.1] - 2026-08-23
 
 ### Fixed
@@ -70,7 +76,8 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.1...v0.2.0

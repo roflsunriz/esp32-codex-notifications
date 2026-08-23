@@ -49,6 +49,12 @@ class RenderPolicyTests(unittest.TestCase):
         self.assertIn("drawAgent(index)", tick_body)
         self.assertNotIn("drawAgents()", tick_body)
 
+    def test_microphone_uses_a_thin_lower_arc(self) -> None:
+        body = function_body("void DeviceUi::drawCommandIcon")
+        self.assertIn("fillRoundRect(x - 6, y - 17, 13, 25, 6", body)
+        self.assertIn("drawArc(x, y + 2, 14, 13, 270, 90", body)
+        self.assertNotIn("drawArc(x, y, 16, 12, 0, 180", body)
+
 
 if __name__ == "__main__":
     unittest.main()

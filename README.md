@@ -26,6 +26,8 @@ ESP32-2432S028R（ILI9341 / XPT2046、通称 CYD）を、ChatGPT Desktop の Cod
 2. 稲妻アイコン: Fast、承認、拒否、フォーク、マイク、送信
 3. 十字アイコン: 上下左右、左でダイヤル値を減少、右で増加、ダイヤル押下
 
+Command画面の6記号は、公式Codex Microの固定キー記号と同じ既定操作の目印です。ChatGPT DesktopでCommand Keyの割り当てを変更しても、デバイス向け通信には割り当て名やアイコンが含まれないため、画面の記号は変わりません。
+
 物理 `BOOT` ボタンを短く押して離すと、表示が180度回転します。タッチ座標も同時に反転し、選んだ向きは再起動後も維持されます。
 
 状態表示は公式Codex Microの意味に合わせています。
@@ -73,13 +75,13 @@ pio device monitor
 Windowsではダウンロード後に次のように検証できます。
 
 ```powershell
-Get-FileHash .\esp32-codex-notifications-v0.3.1-merged.bin -Algorithm SHA256
+Get-FileHash .\esp32-codex-notifications-v0.3.2-merged.bin -Algorithm SHA256
 ```
 
 値が `SHA256SUMS.txt` と一致したら、初回導入ではmergedイメージを0x0へ書き込みます。この操作はBluetooth bonding、タッチ調整、画面方向を含むNVS設定を初期化します。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.3.1-merged.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.3.2-merged.bin
 ```
 
 `COM3` は実際のCH340ポートに置き換えてください。各Release assetにはGitHub Actionsのbuild provenance attestationも付与します。
@@ -87,7 +89,7 @@ python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notific
 既に本ファームウェアを利用中で設定を維持する更新では、`*-firmware.bin` を0x10000へ書き込みます。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.3.1-firmware.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.3.2-firmware.bin
 ```
 
 ## Bluetooth接続
