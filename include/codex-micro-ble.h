@@ -8,6 +8,8 @@
 
 #include <array>
 
+#include "ui-model.h"
+
 struct ThreadLight {
   std::uint32_t color = 0;
   float brightness = 0.0F;
@@ -27,6 +29,7 @@ struct CodexMicroState {
   LightingSide ambient;
   LightingSide keys;
   bool connected = false;
+  bool displayAwake = true;
   bool dirty = true;
 };
 
@@ -40,6 +43,7 @@ class CodexMicroBle {
   void poll();
   void sendKey(const char* key, std::uint8_t action, std::int8_t agent = -1);
   void sendJoystick(float angle, float distance);
+  void wakeDisplay();
   CodexMicroState snapshot();
 
  private:
@@ -68,5 +72,6 @@ class CodexMicroBle {
   SemaphoreHandle_t stateMutex_ = nullptr;
   QueueHandle_t txQueue_ = nullptr;
   CodexMicroState state_;
+  DisplayPowerSync displayPower_;
   String rpcBuffer_;
 };

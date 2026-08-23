@@ -18,6 +18,8 @@ class DeviceUi {
   void calibrateTouch();
   bool readTouch(std::int16_t& x, std::int16_t& y);
   bool touchContactActive() const { return touch_.tirqTouched(); }
+  void setDisplayAwake(bool awake);
+  bool displayAwake() const { return displayAwake_; }
   void setState(const CodexMicroState& state, std::uint32_t now);
   void setPage(Page page);
   void toggleRotation();
@@ -68,6 +70,7 @@ class DeviceUi {
   TouchSampleFilter touchFilter_;
   bool pressed_ = false;
   bool inverted_ = false;
+  bool displayAwake_ = true;
   std::int8_t notificationAgent_ = -1;
   StatusKind notificationStatus_ = StatusKind::Unassigned;
   std::uint32_t notificationUntil_ = 0;

@@ -17,6 +17,24 @@ enum class InputKind : std::uint8_t {
 enum class BootGesture : std::uint8_t { None, RotateScreen, CalibrateTouch };
 enum class TouchTransition : std::uint8_t { None, Press, Release };
 
+class DisplayPowerSync {
+ public:
+  void reset(std::uint32_t nowMs);
+  bool observeLightingConfig(bool allOff);
+  bool observeThreadLighting(std::uint8_t updatedMask, bool allOff,
+                             std::uint32_t nowMs);
+  bool wake(std::uint32_t nowMs);
+  bool awake() const { return awake_; }
+
+ private:
+  static constexpr std::uint8_t kAllThreadsMask = 0x3F;
+  static constexpr std::uint32_t kWakeGraceMs = 5000;
+
+  bool awake_ = true;
+  bool lightingConfigOff_ = false;
+  std::uint32_t ignoreAllOffUntil_ = kWakeGraceMs;
+};
+
 struct InputAction {
   InputKind kind = InputKind::None;
   Page page = Page::Agents;

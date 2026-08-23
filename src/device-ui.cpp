@@ -145,6 +145,7 @@ bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY) {
 }
 
 void DeviceUi::calibrateTouch() {
+  setDisplayAwake(true);
   std::int16_t left = 0;
   std::int16_t top = 0;
   std::int16_t right = 0;
@@ -204,6 +205,27 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
   return true;
 }
 
+void DeviceUi::setDisplayAwake(bool awake) {
+  if (displayAwake_ == awake) return;
+  displayAwake_ = awake;
+  pressed_ = false;
+  touchFilter_.reset();
+  if (!awake) {
+    digitalWrite(board::kBacklightPin, LOW);
+    display_.writecommand(TFT_DISPOFF);
+    display_.writecommand(ILI9341_SLPIN);
+    Serial.println("UI display=off");
+    return;
+  }
+
+  display_.writecommand(ILI9341_SLPOUT);
+  delay(120);
+  display_.writecommand(TFT_DISPON);
+  digitalWrite(board::kBacklightPin, HIGH);
+  drawAll();
+  Serial.println("UI display=on");
+}
+
 void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {
   for (std::size_t index = 0; index < state.threads.size(); ++index) {
     const StatusKind next =
@@ -216,13 +238,15 @@ void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {
     statuses_[index] = next;
   }
   state_ = state;
-  drawAll();
+  const bool powerChanged = displayAwake_ != state.displayAwake;
+  setDisplayAwake(state.displayAwake);
+  if (!powerChanged) drawAll();
 }
 
 void DeviceUi::setPage(Page page) {
   page_ = page;
   pressed_ = false;
-  drawAll();
+  if (displayAwake_) drawAll();
 }
 
 void DeviceUi::toggleRotation() {
@@ -230,23 +254,24 @@ void DeviceUi::toggleRotation() {
   saveOrientation();
   applyOrientation();
   pressed_ = false;
-  drawAll();
+  if (displayAwake_) drawAll();
   Serial.printf("UI rotation=%s\n", inverted_ ? "inverted" : "normal");
 }
 
 void DeviceUi::showPressed(const InputAction& action, bool pressed) {
   pressedAction_ = action;
   pressed_ = pressed;
-  drawAll();
+  if (displayAwake_) drawAll();
 }
 
 void DeviceUi::tick(std::uint32_t now) {
   if (notificationAgent_ >= 0 &&
       static_cast<std::int32_t>(now - notificationUntil_) >= 0) {
     notificationAgent_ = -1;
-    drawHeader();
+    if (displayAwake_) drawHeader();
   }
-  if (page_ == Page::Agents && now - lastAnimation_ >= kAnimationIntervalMs) {
+  if (displayAwake_ && page_ == Page::Agents &&
+      now - lastAnimation_ >= kAnimationIntervalMs) {
     bool animated = false;
     for (const ThreadLight& light : state_.threads) {
       animated = animated || light.effect == "breath";
@@ -257,6 +282,7 @@ void DeviceUi::tick(std::uint32_t now) {
 }
 
 void DeviceUi::drawAll() {
+  if (!displayAwake_) return;
   display_.fillScreen(kBackground);
   drawHeader();
   if (page_ == Page::Agents) drawAgents();

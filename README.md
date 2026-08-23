@@ -41,6 +41,12 @@ ESP32-2432S028R（ILI9341 / XPT2046、通称 CYD）を、ChatGPT Desktop の Cod
 
 緑・黄・赤へ変わると、画面上部に該当Agentの通知が4秒間表示されます。
 
+## 自動調光と画面OFF
+
+Codex Desktopの `Settings > Codex Micro > Auto-dim` と同期します。Desktopで選んだ30秒、1分、3分、10分、30分、1時間の無操作時間に達すると、TFTの表示とバックライトを自動的にOFFにします。`Off` を選んだ場合は自動消灯しません。
+
+消灯中の最初のタッチは画面復帰だけに使われ、タスク切り替えやコマンドは実行しません。指を離してから改めてタッチすると通常操作になります。Agent Keyの色または状態が変わった場合も、Codex Micro照明と同時に画面が自動復帰します。
+
 ## ビルドと書き込み
 
 [PlatformIO Core](https://platformio.org/install/cli) または VS Code の PlatformIO IDE を用意し、リポジトリ直下で実行します。
@@ -65,13 +71,13 @@ pio device monitor
 Windowsではダウンロード後に次のように検証できます。
 
 ```powershell
-Get-FileHash .\esp32-codex-notifications-v0.1.1-merged.bin -Algorithm SHA256
+Get-FileHash .\esp32-codex-notifications-v0.2.0-merged.bin -Algorithm SHA256
 ```
 
 値が `SHA256SUMS.txt` と一致したら、初回導入ではmergedイメージを0x0へ書き込みます。この操作はBluetooth bonding、タッチ調整、画面方向を含むNVS設定を初期化します。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.1.1-merged.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.2.0-merged.bin
 ```
 
 `COM3` は実際のCH340ポートに置き換えてください。各Release assetにはGitHub Actionsのbuild provenance attestationも付与します。
@@ -79,7 +85,7 @@ python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notific
 既に本ファームウェアを利用中で設定を維持する更新では、`*-firmware.bin` を0x10000へ書き込みます。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.1.1-firmware.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.2.0-firmware.bin
 ```
 
 ## Bluetooth接続

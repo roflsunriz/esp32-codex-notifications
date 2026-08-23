@@ -35,6 +35,46 @@ InputAction gridAction(Page page, std::int16_t x, std::int16_t y, InputKind kind
 
 }  // namespace
 
+void DisplayPowerSync::reset(std::uint32_t nowMs) {
+  awake_ = true;
+  lightingConfigOff_ = false;
+  // 接続直後の通常状態が複数回全消灯で届いても画面を即座に消さない。
+  ignoreAllOffUntil_ = nowMs + kWakeGraceMs;
+}
+
+bool DisplayPowerSync::observeLightingConfig(bool allOff) {
+  lightingConfigOff_ = allOff;
+  if (allOff || awake_) return false;
+  awake_ = true;
+  return true;
+}
+
+bool DisplayPowerSync::observeThreadLighting(std::uint8_t updatedMask, bool allOff,
+                                             std::uint32_t nowMs) {
+  const bool completeAllOff = updatedMask == kAllThreadsMask && allOff;
+  if (!completeAllOff) {
+    if (awake_) return false;
+    awake_ = true;
+    return true;
+  }
+  if (!lightingConfigOff_) return false;
+  if (static_cast<std::int32_t>(nowMs - ignoreAllOffUntil_) < 0) {
+    return false;
+  }
+  if (!awake_) return false;
+  awake_ = false;
+  return true;
+}
+
+bool DisplayPowerSync::wake(std::uint32_t nowMs) {
+  const bool changed = !awake_;
+  awake_ = true;
+  // Desktopは活動通知後に現在の照明状態を複数回再送する場合がある。全タスク
+  // 未割り当てなら全組が消灯状態なので、短い復帰猶予中はAuto-dim扱いしない。
+  ignoreAllOffUntil_ = nowMs + kWakeGraceMs;
+  return changed;
+}
+
 InputAction actionAt(Page page, std::int16_t x, std::int16_t y) {
   if (x < 0 || x >= 320 || y < 0 || y >= 240) {
     return {};

@@ -60,6 +60,43 @@ void testTouchContactIsLockedUntilPhysicalRelease() {
           "非接触を維持");
 }
 
+void testDisplayPowerFollowsHostLighting() {
+  DisplayPowerSync power;
+  power.reset(0);
+  require(power.awake(), "初期状態は画面ON");
+
+  power.observeLightingConfig(true);
+  require(!power.observeThreadLighting(0x3F, true, 100),
+          "接続直後の全消灯状態では即座に画面OFFにしない");
+  require(!power.observeThreadLighting(0x3F, true, 4000),
+          "接続直後の全消灯再送をすべて無視");
+  require(power.awake(), "接続直後の画面ONを維持");
+
+  power.observeLightingConfig(false);
+  require(power.observeThreadLighting(0x3F, false, 6000) == false,
+          "通常照明中は画面状態を変更しない");
+  power.observeLightingConfig(true);
+  require(power.observeThreadLighting(0x3F, true, 36000),
+          "Desktopの全消灯ペアで画面OFF");
+  require(!power.awake(), "Auto-dim後は画面OFF");
+
+  require(power.wake(37000), "タッチ復帰で画面ONへ遷移");
+  require(power.awake(), "タッチ復帰後は画面ON");
+  power.observeLightingConfig(true);
+  require(!power.observeThreadLighting(0x3F, true, 37500),
+          "未割り当て状態の復帰再送で再消灯しない");
+  require(!power.observeThreadLighting(0x3F, true, 41000),
+          "復帰状態の複数再送で再消灯しない");
+  require(power.awake(), "復帰直後の画面ONを維持");
+
+  power.observeLightingConfig(true);
+  require(power.observeThreadLighting(0x3F, true, 72000),
+          "次のAuto-dim全消灯では再び画面OFF");
+  require(power.observeThreadLighting(0x01, false, 73000),
+          "Agent状態変更で画面を自動復帰");
+  require(power.awake(), "Agent状態変更後は画面ON");
+}
+
 void testTouchSamplesMustBeStableBeforePress() {
   TouchSampleFilter filter;
   ScreenPoint output;
@@ -137,11 +174,12 @@ int main() {
   testTabs();
   testRotationControlAndCoordinates();
   testTouchContactIsLockedUntilPhysicalRelease();
+  testDisplayPowerFollowsHostLighting();
   testTouchSamplesMustBeStableBeforePress();
   testCommandGridAndProtocolIds();
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
   testStatusColors();
-  std::cout << "ui-model: 9 tests passed\n";
+  std::cout << "ui-model: 10 tests passed\n";
   return 0;
 }

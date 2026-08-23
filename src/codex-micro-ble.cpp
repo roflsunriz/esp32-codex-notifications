@@ -13,14 +13,34 @@ namespace {
 
 constexpr char kDeviceName[] = "Codex Micro";
 constexpr char kManufacturer[] = "Work Louder";
-constexpr char kFirmwareVersion[] = "0.1.1";
+constexpr char kFirmwareVersion[] = "0.2.0";
 constexpr std::size_t kPayloadSize = 61;
 constexpr std::size_t kReportBodySize = 63;
 constexpr std::size_t kMaximumRpcBytes = 4096;
 constexpr std::size_t kTransmitQueueDepth = 8;
+constexpr std::uint8_t kAllThreadsMask = 0x3F;
 
 constexpr std::uint16_t swapBytes(std::uint16_t value) {
   return static_cast<std::uint16_t>((value << 8U) | (value >> 8U));
+}
+
+bool isOffEffect(JsonVariantConst effect) {
+  if (effect.is<const char*>()) return std::strcmp(effect.as<const char*>(), "off") == 0;
+  return effect.is<int>() && effect.as<int>() == 0;
+}
+
+bool isLightingValueOff(JsonObjectConst value) {
+  if (value.isNull() || value["c"].isNull() || value["b"].isNull() ||
+      value["e"].isNull()) {
+    return false;
+  }
+  return value["c"].as<std::uint32_t>() == 0 && value["b"].as<float>() <= 0.01F &&
+         isOffEffect(value["e"]);
+}
+
+bool isLightingConfigOff(JsonObjectConst config) {
+  return isLightingValueOff(config["ambient"].as<JsonObjectConst>()) &&
+         isLightingValueOff(config["keys"].as<JsonObjectConst>());
 }
 
 const std::uint8_t kReportMap[] = {
@@ -160,6 +180,19 @@ void CodexMicroBle::sendJoystick(float angle, float distance) {
   sendJson(json);
 }
 
+void CodexMicroBle::wakeDisplay() {
+  if (stateMutex_ == nullptr) return;
+  xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  displayPower_.wake(millis());
+  state_.displayAwake = true;
+  state_.dirty = true;
+  xSemaphoreGive(stateMutex_);
+
+  // Desktopは任意のHID通知を照明アクティビティとして扱う。未割り当ての
+  // キーIDを使い、復帰タッチでアプリ操作を発生させず照明状態だけ再送させる。
+  sendKey("__WAKE__", 2);
+}
+
 CodexMicroState CodexMicroBle::snapshot() {
   CodexMicroState copy;
   if (stateMutex_ == nullptr) return copy;
@@ -173,7 +206,9 @@ CodexMicroState CodexMicroBle::snapshot() {
 void CodexMicroBle::onConnected(bool connected) {
   if (stateMutex_ == nullptr) return;
   xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  displayPower_.reset(millis());
   state_.connected = connected;
+  state_.displayAwake = true;
   state_.dirty = true;
   xSemaphoreGive(stateMutex_);
   rpcBuffer_.clear();
@@ -252,10 +287,13 @@ void CodexMicroBle::handleRpc(const JsonDocument& request) {
     return;
   }
   if (std::strcmp(method, "v.oai.rgbcfg") == 0 && params.is<JsonObjectConst>()) {
-    xSemaphoreTake(stateMutex_, portMAX_DELAY);
     const JsonObjectConst config = params.as<JsonObjectConst>();
+    const bool allOff = isLightingConfigOff(config);
+    xSemaphoreTake(stateMutex_, portMAX_DELAY);
     updateLightingSide(state_.ambient, config["ambient"].as<JsonObjectConst>());
     updateLightingSide(state_.keys, config["keys"].as<JsonObjectConst>());
+    displayPower_.observeLightingConfig(allOff);
+    state_.displayAwake = displayPower_.awake();
     state_.dirty = true;
     xSemaphoreGive(stateMutex_);
     sendSuccess(id);
@@ -330,15 +368,30 @@ void CodexMicroBle::flushJson(const QueuedMessage& message) {
 }
 
 void CodexMicroBle::updateThreadLighting(JsonArrayConst values) {
-  xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  std::uint8_t updatedMask = 0;
+  bool allOff = true;
   for (JsonObjectConst value : values) {
     const int id = value["id"] | -1;
     if (id < 0 || id >= static_cast<int>(state_.threads.size())) continue;
-    ThreadLight& light = state_.threads[id];
-    light.color = value["c"] | light.color;
-    light.brightness = value["b"] | light.brightness;
-    light.effect = value["e"] | light.effect;
-    light.speed = value["s"] | light.speed;
+    updatedMask = static_cast<std::uint8_t>(updatedMask | (1U << id));
+    allOff = allOff && isLightingValueOff(value);
+  }
+
+  xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  displayPower_.observeThreadLighting(updatedMask, allOff, millis());
+  state_.displayAwake = displayPower_.awake();
+  const bool inactivityOff = updatedMask == kAllThreadsMask && allOff &&
+                             !state_.displayAwake;
+  if (!inactivityOff) {
+    for (JsonObjectConst value : values) {
+      const int id = value["id"] | -1;
+      if (id < 0 || id >= static_cast<int>(state_.threads.size())) continue;
+      ThreadLight& light = state_.threads[id];
+      light.color = value["c"] | light.color;
+      light.brightness = value["b"] | light.brightness;
+      light.effect = value["e"] | light.effect;
+      light.speed = value["s"] | light.speed;
+    }
   }
   state_.dirty = true;
   xSemaphoreGive(stateMutex_);

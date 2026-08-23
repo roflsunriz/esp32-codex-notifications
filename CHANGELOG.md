@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-23
+
+### Added
+
+- 画面の焼き付きを抑えるため、Codex DesktopのCodex Micro Auto-dimが送る全消灯照明状態と同期し、ILI9341の表示・スリープとバックライトを自動的にOFFにする機能を追加した。
+- 誤操作せず画面を確認できるように、消灯中の最初のタッチを復帰専用にし、副作用のない活動通知でDesktop側の照明状態も復帰させる処理を追加した。
+
+### Fixed
+
+- 接続直後またはタッチ復帰直後に全Agentが未割り当ての場合、短時間に複数回届く通常の全消灯状態をAuto-dimと誤認して即座に再消灯しないようにした。
+
 ## [0.1.1] - 2026-08-23
 
 ### Fixed
@@ -44,6 +55,7 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/roflsunriz/esp32-codex-notifications/releases/tag/v0.1.0

@@ -66,8 +66,8 @@ Codex Desktop `26.818.5229.0` 同梱SDKの通常デバイス探索は次をす�
 | --- | --- |
 | `sys.version` | ファームウェア版 |
 | `device.status` | profile、layer、battery |
-| `v.oai.thstatus` | 6つのAgent状態色とeffect |
-| `v.oai.rgbcfg` | ambient/key照明設定 |
+| `v.oai.thstatus` | 6つのAgent状態色とeffect。Auto-dim時は全Agent消灯 |
+| `v.oai.rgbcfg` | ambient/key照明設定。Auto-dim時は両方消灯 |
 | `lights.preview` | 照明プレビュー |
 | `host.focused_app` | フォーカス中アプリ通知 |
 
@@ -78,6 +78,19 @@ Codex Desktop `26.818.5229.0` 同梱SDKの通常デバイス探索は次をす�
 
 永続設定、ファイルシステム、ブートローダーなどの破壊的RPCは実装していません。未知の要求にはJSON-RPC互換の `-32601 Method not found` を返します。
 
+## Auto-dimと画面電源同期
+
+Codex Desktop `26.818.5229.0` の同梱実装では、Auto-dim設定値をデバイスへ直接送る専用RPCはありません。設定値はDesktop側で30秒、1分、3分、10分、30分、1時間のタイマーへ変換され、期限に達すると次の既存RPCを順に送ります。
+
+1. `v.oai.rgbcfg` でambientとkeysを `effect: off`、brightness 0、color 0にする。
+2. `v.oai.thstatus` で6つすべてを `effect: off`、brightness 0、color 0にする。
+
+ESP32はこの全消灯ペアをDesktop側Auto-dimの同期信号として扱い、ILI9341へDisplay OffとSleep Inを送り、GPIO 21のバックライトもLOWにします。独立した消灯時間をESP32へ保存しないため、DesktopでAuto-dimを変更した時点から新しい時間がそのまま適用されます。
+
+消灯中の最初のタッチは操作へ変換せず、未割り当てキーID `__WAKE__` のHID通知だけを送ります。Desktop側は任意のHID通知を照明アクティビティとして先に処理してからキー割り当てを評価するため、アプリ操作を発生させず現在の照明状態を再送できます。ESP32はSleep Out後に表示を再描画し、同じ物理接触が離れるまでは次の操作を受け付けません。
+
+通信上、全Agentが未割り当ての通常状態とAuto-dimの全消灯payloadは同一です。接続直後とタッチ復帰直後の5秒間に届く全消灯ペアはすべて通常状態として扱い、Desktopの最短Auto-dim時間である30秒より前の重複再送で消灯しないようにします。猶予終了後にDesktopが送る全消灯ペアで消灯します。
+
 ## 互換性境界
 
 これはOpenAIまたはWork Louderが安定性を保証した公開APIではありません。ChatGPT Desktop更新後は、次を実機で再確認します。
@@ -87,6 +100,7 @@ Codex Desktop `26.818.5229.0` 同梱SDKの通常デバイス探索は次をす�
 3. 6 Agentの `v.oai.thstatus` が到達すること。
 4. 全操作のpress/releaseとEncoder stepが重複しないこと。
 5. 切断後にBLE advertisingが再開すること。
+6. Auto-dimの各設定時間で画面が消灯し、最初のタッチでは操作せず復帰すること。
 
 ## 実機検証
 
@@ -103,5 +117,8 @@ Codex Desktop `26.818.5229.0` 同梱SDKの通常デバイス探索は次をす�
 - 物理BOOT短押しで180度回転し、再起動後も向きが保持された。
 - 押下閾値75と2点調整後、付属ペンで下部タブと6つのAgent領域を個別に操作できた。
 - 圧力が揺れてもIRQ解放までは1接触として保持され、タブ切替後の上部ボタンへ入力が漏れなかった。
+- v0.2.0を書き込んだ実機でAuto-dim期限到達時にDisplay Off、Sleep In、バックライトOFFへ移行した。
+- 消灯中の最初のタッチがアプリ操作を発生させず画面を復帰し、Desktopから通常照明が再送された後も復帰猶予中の重複全消灯で再消灯しなかった。
+- タッチ復帰後、次のAuto-dim期限で再び画面が消灯した。
 
 切断後の再広告は目視・操作を伴うため、リリース前の手動確認項目として残します。

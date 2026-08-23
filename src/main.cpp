@@ -44,6 +44,14 @@ void press(const InputAction& action) {
   }
 }
 
+void wakeDisplay() {
+  activeAction = {};
+  touchActive = true;
+  ui.setDisplayAwake(true);
+  codex.wakeDisplay();
+  Serial.println("UI wake touch consumed");
+}
+
 void initializeBootGesture() {
   bootRawHigh = digitalRead(board::kBootButtonPin) == HIGH;
   bootStableHigh = bootRawHigh;
@@ -114,7 +122,13 @@ void loop() {
   const bool touched = ui.readTouch(x, y);
   const bool contactActive = ui.touchContactActive();
   const TouchTransition transition = touchTransition(touchActive, touched, contactActive);
-  if (transition == TouchTransition::Press) press(actionAt(ui.page(), x, y));
+  if (transition == TouchTransition::Press) {
+    if (ui.displayAwake()) {
+      press(actionAt(ui.page(), x, y));
+    } else {
+      wakeDisplay();
+    }
+  }
   if (transition == TouchTransition::Release) release();
   codex.poll();
 
