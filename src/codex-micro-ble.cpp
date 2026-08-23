@@ -13,7 +13,7 @@ namespace {
 
 constexpr char kDeviceName[] = "Codex Micro";
 constexpr char kManufacturer[] = "Work Louder";
-constexpr char kFirmwareVersion[] = "0.2.0";
+constexpr char kFirmwareVersion[] = "0.3.0";
 constexpr std::size_t kPayloadSize = 61;
 constexpr std::size_t kReportBodySize = 63;
 constexpr std::size_t kMaximumRpcBytes = 4096;
@@ -110,6 +110,7 @@ void CodexMicroBle::begin() {
     Serial.println("BLE transport allocation failed");
     return;
   }
+  displayPower_.reset(millis());
 
   BLEDevice::init(kDeviceName);
   // Report IDを除く63 bytesのnotificationが収まるATT MTUを確保する。
@@ -150,6 +151,14 @@ void CodexMicroBle::begin() {
 }
 
 void CodexMicroBle::poll() {
+  if (stateMutex_ != nullptr) {
+    xSemaphoreTake(stateMutex_, portMAX_DELAY);
+    if (displayPower_.tick(millis())) {
+      state_.displayAwake = false;
+      state_.dirty = true;
+    }
+    xSemaphoreGive(stateMutex_);
+  }
   if (txQueue_ == nullptr) return;
   QueuedMessage message;
   while (xQueueReceive(txQueue_, &message, 0) == pdTRUE) flushJson(message);
@@ -206,9 +215,9 @@ CodexMicroState CodexMicroBle::snapshot() {
 void CodexMicroBle::onConnected(bool connected) {
   if (stateMutex_ == nullptr) return;
   xSemaphoreTake(stateMutex_, portMAX_DELAY);
-  displayPower_.reset(millis());
+  displayPower_.setConnected(connected, millis());
   state_.connected = connected;
-  state_.displayAwake = true;
+  state_.displayAwake = displayPower_.awake();
   state_.dirty = true;
   xSemaphoreGive(stateMutex_);
   rpcBuffer_.clear();

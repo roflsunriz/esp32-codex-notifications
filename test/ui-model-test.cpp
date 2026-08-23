@@ -63,6 +63,7 @@ void testTouchContactIsLockedUntilPhysicalRelease() {
 void testDisplayPowerFollowsHostLighting() {
   DisplayPowerSync power;
   power.reset(0);
+  power.setConnected(true, 0);
   require(power.awake(), "初期状態は画面ON");
 
   power.observeLightingConfig(true);
@@ -95,6 +96,36 @@ void testDisplayPowerFollowsHostLighting() {
   require(power.observeThreadLighting(0x01, false, 73000),
           "Agent状態変更で画面を自動復帰");
   require(power.awake(), "Agent状態変更後は画面ON");
+}
+
+void testDisplaySleepsWhileDisconnected() {
+  DisplayPowerSync power;
+  power.reset(1000);
+  require(power.awake(), "未接続起動直後は画面ON");
+  require(!power.tick(30999), "未接続30秒未満は画面ON");
+  require(power.tick(31000), "未接続30秒で画面OFF");
+  require(!power.awake(), "未接続タイマー後は画面OFF");
+
+  require(power.wake(32000), "切断中のタッチで画面復帰");
+  require(!power.tick(61999), "切断中の復帰から30秒未満は画面ON");
+  require(power.tick(62000), "切断中の復帰から30秒で再消灯");
+
+  require(power.setConnected(true, 63000), "再接続で画面復帰");
+  require(power.awake(), "再接続後は画面ON");
+  require(!power.tick(200000), "接続中は切断タイマーを無効化");
+
+  require(!power.setConnected(false, 201000), "切断時は即消灯しない");
+  require(!power.tick(230999), "再切断から30秒未満は画面ON");
+  require(!power.setConnected(true, 231000), "期限直前の再接続はONを維持");
+  require(!power.tick(500000), "再接続で切断タイマーをキャンセル");
+}
+
+void testDisconnectTimerHandlesMillisWrap() {
+  DisplayPowerSync power;
+  constexpr std::uint32_t start = 0xFFFFFF00U;
+  power.reset(start);
+  require(!power.tick(start + 29999U), "millis周回前後の30秒未満");
+  require(power.tick(start + 30000U), "millis周回後も30秒で消灯");
 }
 
 void testTouchSamplesMustBeStableBeforePress() {
@@ -175,11 +206,13 @@ int main() {
   testRotationControlAndCoordinates();
   testTouchContactIsLockedUntilPhysicalRelease();
   testDisplayPowerFollowsHostLighting();
+  testDisplaySleepsWhileDisconnected();
+  testDisconnectTimerHandlesMillisWrap();
   testTouchSamplesMustBeStableBeforePress();
   testCommandGridAndProtocolIds();
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
   testStatusColors();
-  std::cout << "ui-model: 10 tests passed\n";
+  std::cout << "ui-model: 12 tests passed\n";
   return 0;
 }

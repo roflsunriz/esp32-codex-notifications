@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-23
+
+### Added
+
+- PCのスリープやシャットダウン後も画面の焼き付きを抑えられるように、Codex MicroのBLE接続が切れてから30秒後に画面とバックライトを自動消灯する機能を追加した。
+- 一時的な通信断で画面確認を妨げないように、30秒以内の再接続では消灯を取り消し、消灯後の再接続では画面を自動復帰する処理を追加した。
+- PC不在中でも必要なときだけ状態を確認できるように、切断中のタッチ復帰後は30秒を再計測して再び自動消灯するようにした。
+
 ## [0.2.0] - 2026-08-23
 
 ### Added
@@ -55,7 +63,8 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/roflsunriz/esp32-codex-notifications/releases/tag/v0.1.0

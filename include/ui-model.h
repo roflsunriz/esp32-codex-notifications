@@ -23,16 +23,21 @@ class DisplayPowerSync {
   bool observeLightingConfig(bool allOff);
   bool observeThreadLighting(std::uint8_t updatedMask, bool allOff,
                              std::uint32_t nowMs);
+  bool setConnected(bool connected, std::uint32_t nowMs);
+  bool tick(std::uint32_t nowMs);
   bool wake(std::uint32_t nowMs);
   bool awake() const { return awake_; }
 
  private:
   static constexpr std::uint8_t kAllThreadsMask = 0x3F;
   static constexpr std::uint32_t kWakeGraceMs = 5000;
+  static constexpr std::uint32_t kDisconnectSleepMs = 30000;
 
   bool awake_ = true;
+  bool connected_ = false;
   bool lightingConfigOff_ = false;
   std::uint32_t ignoreAllOffUntil_ = kWakeGraceMs;
+  std::uint32_t disconnectSleepAt_ = kDisconnectSleepMs;
 };
 
 struct InputAction {

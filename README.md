@@ -47,6 +47,8 @@ Codex Desktopの `Settings > Codex Micro > Auto-dim` と同期します。Deskto
 
 消灯中の最初のタッチは画面復帰だけに使われ、タスク切り替えやコマンドは実行しません。指を離してから改めてタッチすると通常操作になります。Agent Keyの色または状態が変わった場合も、Codex Micro照明と同時に画面が自動復帰します。
 
+PCのスリープ、シャットダウン、Bluetooth切断、Codex Desktop終了などでCodex Microとの接続が切れた場合は、DesktopのAuto-dim設定に関係なく30秒後に画面をOFFにします。30秒以内に再接続すれば消灯を取り消し、既に消灯していた場合も再接続時に自動復帰します。切断中にタッチで復帰した場合は、確認できる状態を30秒間維持してから再び消灯します。
+
 ## ビルドと書き込み
 
 [PlatformIO Core](https://platformio.org/install/cli) または VS Code の PlatformIO IDE を用意し、リポジトリ直下で実行します。
@@ -71,13 +73,13 @@ pio device monitor
 Windowsではダウンロード後に次のように検証できます。
 
 ```powershell
-Get-FileHash .\esp32-codex-notifications-v0.2.0-merged.bin -Algorithm SHA256
+Get-FileHash .\esp32-codex-notifications-v0.3.0-merged.bin -Algorithm SHA256
 ```
 
 値が `SHA256SUMS.txt` と一致したら、初回導入ではmergedイメージを0x0へ書き込みます。この操作はBluetooth bonding、タッチ調整、画面方向を含むNVS設定を初期化します。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.2.0-merged.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.3.0-merged.bin
 ```
 
 `COM3` は実際のCH340ポートに置き換えてください。各Release assetにはGitHub Actionsのbuild provenance attestationも付与します。
@@ -85,7 +87,7 @@ python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notific
 既に本ファームウェアを利用中で設定を維持する更新では、`*-firmware.bin` を0x10000へ書き込みます。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.2.0-firmware.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.3.0-firmware.bin
 ```
 
 ## Bluetooth接続
