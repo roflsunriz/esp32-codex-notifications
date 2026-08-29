@@ -41,10 +41,18 @@ DeviceUi::DeviceUi()
                    board::kDefaultTouchTop, board::kDefaultTouchBottom} {}
 
 void DeviceUi::begin() {
-  pinMode(board::kBacklightPin, OUTPUT);
-  digitalWrite(board::kBacklightPin, HIGH);
   loadOrientation();
   display_.init();
+  backlightPwmReady_ =
+      ledcSetup(board::kBacklightPwmChannel, board::kBacklightPwmFrequency,
+                board::kBacklightPwmResolution) != 0;
+  if (backlightPwmReady_) {
+    ledcAttachPin(board::kBacklightPin, board::kBacklightPwmChannel);
+  } else {
+    pinMode(board::kBacklightPin, OUTPUT);
+    Serial.println("UI backlight PWM unavailable; using on/off fallback");
+  }
+  setBacklight(1.0F, true);
   applyOrientation();
   display_.setTextWrap(false);
 
@@ -205,12 +213,15 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
 }
 
 void DeviceUi::setDisplayAwake(bool awake) {
-  if (displayAwake_ == awake) return;
+  if (displayAwake_ == awake) {
+    setBacklight(state_.lightingBrightness, awake);
+    return;
+  }
   displayAwake_ = awake;
   pressed_ = false;
   touchFilter_.reset();
   if (!awake) {
-    digitalWrite(board::kBacklightPin, LOW);
+    setBacklight(state_.lightingBrightness, false);
     display_.writecommand(TFT_DISPOFF);
     display_.writecommand(ILI9341_SLPIN);
     Serial.println("UI display=off");
@@ -220,9 +231,21 @@ void DeviceUi::setDisplayAwake(bool awake) {
   display_.writecommand(ILI9341_SLPOUT);
   delay(120);
   display_.writecommand(TFT_DISPON);
-  digitalWrite(board::kBacklightPin, HIGH);
+  setBacklight(state_.lightingBrightness, true);
   drawAll();
   Serial.println("UI display=on");
+}
+
+void DeviceUi::setBacklight(float brightness, bool awake) {
+  const std::uint8_t duty = backlightDuty(brightness, awake);
+  if (backlightDuty_ == duty) return;
+  backlightDuty_ = duty;
+  if (backlightPwmReady_) {
+    ledcWrite(board::kBacklightPwmChannel, duty);
+  } else {
+    digitalWrite(board::kBacklightPin, duty == 0 ? LOW : HIGH);
+  }
+  Serial.printf("UI backlight duty=%u\n", static_cast<unsigned>(duty));
 }
 
 void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {

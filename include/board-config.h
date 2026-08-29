@@ -8,6 +8,9 @@ constexpr std::int16_t kScreenWidth = 320;
 constexpr std::int16_t kScreenHeight = 240;
 
 constexpr std::int8_t kBacklightPin = 21;
+constexpr std::uint8_t kBacklightPwmChannel = 7;
+constexpr std::uint32_t kBacklightPwmFrequency = 5000;
+constexpr std::uint8_t kBacklightPwmResolution = 8;
 constexpr std::int8_t kBootButtonPin = 0;
 
 constexpr std::int8_t kTouchClockPin = 25;

@@ -198,6 +198,28 @@ void testStatusColors() {
   require(isNotificationStatus(StatusKind::Error), "エラーを通知する");
 }
 
+void testBacklightBrightnessFollowsActiveLighting() {
+  require(std::abs(synchronizedLightingBrightness(1.0F, 0.72F, true) - 0.72F) <
+              0.001F,
+          "正の照明輝度を同期する");
+  require(std::abs(synchronizedLightingBrightness(0.72F, 0.0F, false) - 0.72F) <
+              0.001F,
+          "消灯ゾーンの0は保存輝度を上書きしない");
+  require(std::abs(synchronizedLightingBrightness(0.72F, 0.0F, true)) < 0.001F,
+          "有効な照明指示の0はBrightness 0パーセントとして同期する");
+  require(std::abs(synchronizedLightingBrightness(0.72F, 2.0F, true) - 1.0F) <
+              0.001F,
+          "上限を100パーセントへ丸める");
+  require(std::abs(synchronizedLightingBrightness(1.0F, 0.01F, true) - 0.01F) <
+              0.001F,
+          "最小の1パーセント設定も同期する");
+
+  require(backlightDuty(0.0F, true) == 0, "0パーセントはduty 0");
+  require(backlightDuty(0.5F, true) == 128, "50パーセントは8-bit dutyへ丸める");
+  require(backlightDuty(1.0F, true) == 255, "100パーセントは最大duty");
+  require(backlightDuty(0.8F, false) == 0, "Auto-dim中は保存輝度に関係なく消灯");
+}
+
 }  // namespace
 
 int main() {
@@ -213,6 +235,7 @@ int main() {
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
   testStatusColors();
-  std::cout << "ui-model: 12 tests passed\n";
+  testBacklightBrightnessFollowsActiveLighting();
+  std::cout << "ui-model: 13 tests passed\n";
   return 0;
 }

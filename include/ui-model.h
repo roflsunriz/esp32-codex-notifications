@@ -90,3 +90,6 @@ TouchTransition touchTransition(bool captured, bool hasPoint, bool contactActive
 const char* protocolKeyFor(const InputAction& action);
 StatusKind statusKindForColor(std::uint32_t rgb, float brightness);
 bool isNotificationStatus(StatusKind status);
+float synchronizedLightingBrightness(float previous, float observed,
+                                     bool observable);
+std::uint8_t backlightDuty(float brightness, bool displayAwake);

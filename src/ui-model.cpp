@@ -1,6 +1,7 @@
 #include "ui-model.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 
 namespace {
@@ -210,4 +211,19 @@ StatusKind statusKindForColor(std::uint32_t rgb, float brightness) {
 bool isNotificationStatus(StatusKind status) {
   return status == StatusKind::Complete || status == StatusKind::Attention ||
          status == StatusKind::Error;
+}
+
+float synchronizedLightingBrightness(float previous, float observed,
+                                     bool observable) {
+  const float safePrevious = std::isfinite(previous)
+                                 ? std::max(0.0F, std::min(1.0F, previous))
+                                 : 1.0F;
+  if (!observable || !std::isfinite(observed)) return safePrevious;
+  return std::max(0.0F, std::min(1.0F, observed));
+}
+
+std::uint8_t backlightDuty(float brightness, bool displayAwake) {
+  if (!displayAwake || !std::isfinite(brightness)) return 0;
+  const float clamped = std::max(0.0F, std::min(1.0F, brightness));
+  return static_cast<std::uint8_t>(std::lround(clamped * 255.0F));
 }

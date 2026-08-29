@@ -7,6 +7,7 @@
 #include <BLEDevice.h>
 #include <BLESecurity.h>
 
+#include <algorithm>
 #include <cstring>
 
 namespace {
@@ -41,6 +42,34 @@ bool isLightingValueOff(JsonObjectConst value) {
 bool isLightingConfigOff(JsonObjectConst config) {
   return isLightingValueOff(config["ambient"].as<JsonObjectConst>()) &&
          isLightingValueOff(config["keys"].as<JsonObjectConst>());
+}
+
+float observedBrightness(JsonObjectConst value) {
+  if (value.isNull() || value["b"].isNull()) return 0.0F;
+  return std::max(0.0F, value["b"].as<float>());
+}
+
+bool hasObservableBrightness(JsonObjectConst value) {
+  if (value.isNull() || value["b"].isNull() || value["c"].isNull() ||
+      value["e"].isNull()) {
+    return false;
+  }
+  return value["c"].as<std::uint32_t>() != 0 || !isOffEffect(value["e"]);
+}
+
+float observedBrightness(JsonArrayConst values) {
+  float maximum = 0.0F;
+  for (JsonObjectConst value : values) {
+    maximum = std::max(maximum, observedBrightness(value));
+  }
+  return maximum;
+}
+
+bool hasObservableBrightness(JsonArrayConst values) {
+  for (JsonObjectConst value : values) {
+    if (hasObservableBrightness(value)) return true;
+  }
+  return false;
 }
 
 const std::uint8_t kReportMap[] = {
@@ -298,13 +327,26 @@ void CodexMicroBle::handleRpc(const JsonDocument& request) {
   if (std::strcmp(method, "v.oai.rgbcfg") == 0 && params.is<JsonObjectConst>()) {
     const JsonObjectConst config = params.as<JsonObjectConst>();
     const bool allOff = isLightingConfigOff(config);
+    const float observed =
+        std::max(observedBrightness(config["ambient"].as<JsonObjectConst>()),
+                 observedBrightness(config["keys"].as<JsonObjectConst>()));
+    const bool brightnessObservable =
+        hasObservableBrightness(config["ambient"].as<JsonObjectConst>()) ||
+        hasObservableBrightness(config["keys"].as<JsonObjectConst>());
     xSemaphoreTake(stateMutex_, portMAX_DELAY);
     updateLightingSide(state_.ambient, config["ambient"].as<JsonObjectConst>());
     updateLightingSide(state_.keys, config["keys"].as<JsonObjectConst>());
+    const float previousBrightness = state_.lightingBrightness;
+    state_.lightingBrightness = synchronizedLightingBrightness(
+        state_.lightingBrightness, observed, brightnessObservable);
     displayPower_.observeLightingConfig(allOff);
     state_.displayAwake = displayPower_.awake();
     state_.dirty = true;
+    const float synchronizedBrightness = state_.lightingBrightness;
     xSemaphoreGive(stateMutex_);
+    if (previousBrightness != synchronizedBrightness) {
+      Serial.printf("Lighting brightness=%.0f%%\n", synchronizedBrightness * 100.0F);
+    }
     sendSuccess(id);
     return;
   }
@@ -385,8 +427,13 @@ void CodexMicroBle::updateThreadLighting(JsonArrayConst values) {
     updatedMask = static_cast<std::uint8_t>(updatedMask | (1U << id));
     allOff = allOff && isLightingValueOff(value);
   }
+  const float observed = observedBrightness(values);
+  const bool brightnessObservable = hasObservableBrightness(values);
 
   xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  const float previousBrightness = state_.lightingBrightness;
+  state_.lightingBrightness = synchronizedLightingBrightness(
+      state_.lightingBrightness, observed, brightnessObservable);
   displayPower_.observeThreadLighting(updatedMask, allOff, millis());
   state_.displayAwake = displayPower_.awake();
   const bool inactivityOff = updatedMask == kAllThreadsMask && allOff &&
@@ -403,7 +450,11 @@ void CodexMicroBle::updateThreadLighting(JsonArrayConst values) {
     }
   }
   state_.dirty = true;
+  const float synchronizedBrightness = state_.lightingBrightness;
   xSemaphoreGive(stateMutex_);
+  if (previousBrightness != synchronizedBrightness) {
+    Serial.printf("Lighting brightness=%.0f%%\n", synchronizedBrightness * 100.0F);
+  }
 }
 
 void CodexMicroBle::updateLightingSide(LightingSide& side, JsonObjectConst value) {

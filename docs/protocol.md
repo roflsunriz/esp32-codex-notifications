@@ -8,6 +8,7 @@
 - [ZyoungInc/codex-keyboard](https://github.com/ZyoungInc/codex-keyboard) commit `2ee23a4ab696f94bb78d250f28cc4a9b879ba079`: ESP32 BLE HIDとしてChatGPT Desktopに認識させるMIT実装。
 - [mpociot/codex-micro-stream-deck-emulator](https://github.com/mpociot/codex-micro-stream-deck-emulator): HID Report 6、フレーミング、RPCメソッドを独立に再現したMIT実装。
 - [arthurcolle/codex-micro-open](https://github.com/arthurcolle/codex-micro-open): Creator Micro 2実機のUSB/BLE HID解析とJSON-RPCの独立検証。
+- [eliBenven/freemicro: FACTORY-DEFAULTS.md](https://github.com/eliBenven/freemicro/blob/main/docs/FACTORY-DEFAULTS.md): Codex Desktop同梱コードから照明設定キー、0〜100のスキーマ、`brightness / 100` の送信変換を追跡した解析。
 - [witnessmenow/ESP32-Cheap-Yellow-Display](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display): ESP32-2432S028Rの表示・タッチ配線とPlatformIO設定。
 
 OpenAI Docsは製品の利用方法と観測可能な状態を説明していますが、通信バイト列は公開していません。以下の通信詳細は、複数の公開互換実装で一致した非公式仕様です。
@@ -82,6 +83,14 @@ Codex Desktop `26.818.5229.0` 同梱SDKの通常デバイス探索は次をす�
 
 OpenAI DocsではChatGPT Desktopの設定からCommand Keysをカスタマイズできます。一方、現在確認できるホストからデバイスへのRPCには、Command Keyの割り当て名、操作種別、アイコンを通知する要求がありません。そのため、Command画面の6記号は公式Codex Microの固定キー記号と同じ既定操作の目印として表示し、Desktop側のカスタム割り当てへは追従しません。将来Desktopから割り当てメタデータが送信されるようになった場合は、未知RPCの実機ログと公開互換実装を再調査してから動的表示を検討します。
 
+## BrightnessとバックライトPWM同期
+
+Codex Desktopの `codex-micro-lighting-brightness` は0〜100の整数で、既定値は100です。照明RPCでは100で割った0.0〜1.0のfloatが `b` に入り、Agent Keys、ambient、keysで同じ設定値が使われます。ただし、消灯中のゾーンは設定値に関係なく `b: 0` です。専用の設定値通知RPCはありません。
+
+ESP32は `v.oai.rgbcfg` と `v.oai.thstatus` の各payloadから `b` の最大値を取り、最後に観測した共通輝度として保持します。ambientやkeysが消灯中でも、いずれかの割り当て済みAgentで色またはeffectが有効なら設定値を取得できます。有効な照明指示で `b: 0` ならBrightness 0%として同期し、色・effect・輝度がすべてoffのゾーンだけなら保存輝度を維持します。
+
+保存した0.0〜1.0は、GPIO 21の5kHz・8-bit PWMへ0〜255で線形変換します。画面スリープ時は保存値に関係なくduty 0です。全Agent未割り当てなど、Desktopが有効な色またはeffectを持つ照明を一つも送らない間は新しい設定を通信上識別できないため、直前の値を維持します。
+
 ## Auto-dimと画面電源同期
 
 Codex Desktop `26.818.5229.0` の同梱実装では、Auto-dim設定値をデバイスへ直接送る専用RPCはありません。設定値はDesktop側で30秒、1分、3分、10分、30分、1時間のタイマーへ変換され、期限に達すると次の既存RPCを順に送ります。
@@ -112,6 +121,7 @@ PCがスリープまたはシャットダウンするとDesktopからAuto-dim RP
 5. 切断後にBLE advertisingが再開すること。
 6. Auto-dimの各設定時間で画面が消灯し、最初のタッチでは操作せず復帰すること。
 7. 未接続起動とBLE切断の30秒後に消灯し、期限前の再接続でキャンセル、期限後の再接続で復帰すること。
+8. Brightnessを100%、50%、10%、0%へ変更すると、シリアルログのbacklight dutyがそれぞれ255、128、26、0になり、画面の明るさも追従すること。
 
 ## 実機検証
 
@@ -132,5 +142,6 @@ PCがスリープまたはシャットダウンするとDesktopからAuto-dim RP
 - 消灯中の最初のタッチがアプリ操作を発生させず画面を復帰し、Desktopから通常照明が再送された後も復帰猶予中の重複全消灯で再消灯しなかった。
 - タッチ復帰後、次のAuto-dim期限で再び画面が消灯した。
 - v0.3.0を書き込んだ実機で既存bondingから自動再接続し、照明設定、6 Agent状態、端末状態のRPC往復が継続することを確認した。
+- 2026-08-29にCodex Desktop `26.825.4187.0` とPWM同期版を書き込んだ実機で、Brightness 0%、10%、50%、100%の変更が `v.oai.thstatus` として到達し、GPIO 21の8-bit dutyがそれぞれ0、26、128、255へ変化することを確認した。検証後は100%へ戻した。
 
 切断後の再広告は目視・操作を伴うため、リリース前の手動確認項目として残します。

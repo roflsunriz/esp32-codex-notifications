@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Codex MicroのBrightness設定が画面のON/OFFにしか反映されない仮実装を解消するため、照明RPCの共通輝度をGPIO 21の5kHz・8-bit PWMへ変換し、TFTバックライトを0〜100%で追従させるようにした。
+
 ## [0.3.2] - 2026-08-23
 
 ### Fixed

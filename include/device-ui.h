@@ -67,6 +67,7 @@ class DeviceUi {
                        std::uint16_t color);
   void drawArrow(std::int16_t x, std::int16_t y, std::int8_t dx, std::int8_t dy,
                  std::uint16_t color);
+  void setBacklight(float brightness, bool awake);
   std::uint16_t lightColor(const ThreadLight& light, float pulse = 1.0F);
   bool actionIsPressed(InputKind kind, std::int8_t index = -1) const;
 
@@ -82,6 +83,8 @@ class DeviceUi {
   bool pressed_ = false;
   bool inverted_ = false;
   bool displayAwake_ = true;
+  bool backlightPwmReady_ = false;
+  std::uint8_t backlightDuty_ = 0;
   std::int8_t notificationAgent_ = -1;
   StatusKind notificationStatus_ = StatusKind::Unassigned;
   std::uint32_t notificationUntil_ = 0;

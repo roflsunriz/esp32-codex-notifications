@@ -28,6 +28,7 @@ struct CodexMicroState {
   std::array<ThreadLight, 6> threads;
   LightingSide ambient;
   LightingSide keys;
+  float lightingBrightness = 1.0F;
   bool connected = false;
   bool displayAwake = true;
   bool dirty = true;

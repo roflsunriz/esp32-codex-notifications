@@ -43,7 +43,11 @@ Command画面の6記号は、公式Codex Microの固定キー記号と同じ既�
 
 緑・黄・赤へ変わると、画面上部に該当Agentの通知が4秒間表示されます。
 
-## 自動調光と画面OFF
+## 明るさ同期と画面OFF
+
+Codex Desktopの `Settings > Codex Micro > Brightness` とTFTバックライトの明るさを同期します。Desktopが照明RPCへ送る0.0〜1.0の輝度を、GPIO 21の5kHz・8-bit PWMへ変換します。たとえば50%はduty 128、100%はduty 255です。
+
+消灯中のAgent、ambient、keysには設定値に関係なく輝度0が送られるため、ESP32は色またはeffectが有効ないずれかの照明から共通輝度を取得します。Brightnessを0%にした場合は、有効な照明指示の輝度0を設定値として識別し、バックライトをduty 0にします。
 
 Codex Desktopの `Settings > Codex Micro > Auto-dim` と同期します。Desktopで選んだ30秒、1分、3分、10分、30分、1時間の無操作時間に達すると、TFTの表示とバックライトを自動的にOFFにします。`Off` を選んだ場合は自動消灯しません。
 
