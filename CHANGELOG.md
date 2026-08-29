@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-29
+
 ### Fixed
 
 - Codex MicroのBrightness設定が画面のON/OFFにしか反映されない仮実装を解消するため、照明RPCの共通輝度をGPIO 21の5kHz・8-bit PWMへ変換し、TFTバックライトを0〜100%で追従させるようにした。
@@ -80,7 +82,8 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.2.0...v0.3.0
