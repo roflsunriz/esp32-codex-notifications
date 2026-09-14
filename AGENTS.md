@@ -19,3 +19,7 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 
 ## Environment
 <必要に応じて適宜書き足すこと。>
+
+## タッチ調整（2026-09-14、実機未検証）
+
+- 既存のBOOT長押し2点調整に、XPT2046の押圧閾値の実測・保存を追加した。`codex-touch` のversion 1の位置調整は閾値120で引き継ぎ、新しい位置・閾値は検証値付き単一`calib` blobへ保存する。校正中のみ閾値12で読み、保存失敗時は旧値へ戻す（`src/device-ui.cpp`、`lib/sensitive-xpt2046`）。抵抗膜に接触せずPENIRQが出ないペンは閾値変更だけでは認識できない。

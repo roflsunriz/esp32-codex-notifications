@@ -45,6 +45,9 @@ void testRotationControlAndCoordinates() {
           "BOOT短押し上限");
   require(bootGestureForDuration(1500) == BootGesture::CalibrateTouch,
           "BOOT長押し調整");
+  require(touchThresholdForPressure(10) == 12, "押圧閾値の下限");
+  require(touchThresholdForPressure(30) == 15, "軽いペンの押圧閾値");
+  require(touchThresholdForPressure(600) == 120, "押圧閾値の上限");
 }
 
 void testTouchContactIsLockedUntilPhysicalRelease() {

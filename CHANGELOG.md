@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-14
+
+### Added
+
+- 軽いタッチペン操作を個体ごとに認識できるよう、既存のBOOT長押し2点調整へ押圧感度の実測・保存を追加した。保存済みの位置調整は維持する。
+
 ## [0.3.3] - 2026-08-29
 
 ### Fixed
@@ -82,7 +88,8 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.0...v0.3.1

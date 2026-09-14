@@ -33,14 +33,16 @@ class DeviceUi {
     std::int16_t right;
     std::int16_t top;
     std::int16_t bottom;
+    std::int16_t pressure;
   };
 
   void loadCalibration();
-  void saveCalibration();
+  bool saveCalibration();
   void loadOrientation();
   void saveOrientation();
   void applyOrientation();
-  bool captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY);
+  bool captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY,
+                               std::int16_t& pressure);
   void drawAll();
   void drawContent();
   void drawHeader();

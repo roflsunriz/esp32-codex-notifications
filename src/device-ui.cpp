@@ -15,7 +15,18 @@ constexpr std::uint16_t kPanelPressed = 0x31A6;
 constexpr std::uint16_t kText = 0xFFFF;
 constexpr std::uint16_t kMuted = 0x8410;
 constexpr std::uint16_t kAccent = 0x2E73;
-constexpr std::uint32_t kCalibrationVersion = 1;
+constexpr std::uint32_t kCalibrationVersion = 2;
+struct StoredCalibration {
+  std::uint32_t version;
+  std::int16_t values[5];
+  std::uint16_t check;
+};
+static_assert(sizeof(StoredCalibration) == 16, "touch calibration record size");
+std::uint16_t calibrationCheck(const StoredCalibration& record) {
+  std::uint16_t result = 0xA53C;
+  for (const auto value : record.values) result ^= static_cast<std::uint16_t>(value);
+  return result;
+}
 constexpr std::uint32_t kOrientationVersion = 1;
 constexpr std::uint32_t kNotificationDurationMs = 4000;
 constexpr std::uint32_t kAnimationIntervalMs = 90;
@@ -38,7 +49,8 @@ DeviceUi::DeviceUi()
       touch_(board::kTouchChipSelectPin, board::kTouchIrqPin,
              board::kTouchPressureMinimum),
       calibration_{board::kDefaultTouchLeft, board::kDefaultTouchRight,
-                   board::kDefaultTouchTop, board::kDefaultTouchBottom} {}
+                   board::kDefaultTouchTop, board::kDefaultTouchBottom,
+                   board::kTouchPressureMinimum} {}
 
 void DeviceUi::begin() {
   loadOrientation();
@@ -69,31 +81,46 @@ void DeviceUi::loadCalibration() {
   Preferences preferences;
   // 初回起動ではnamespaceがまだ無い。read-writeで開いて空namespaceを正常に作る。
   if (!preferences.begin("codex-touch", false)) return;
-  if (preferences.getUInt("version", 0) == kCalibrationVersion) {
+  StoredCalibration stored = {};
+  if (preferences.getBytesLength("calib") == sizeof(stored) &&
+      preferences.getBytes("calib", &stored, sizeof(stored)) == sizeof(stored) &&
+      stored.version == kCalibrationVersion &&
+      stored.check == calibrationCheck(stored)) {
+    TouchCalibration candidate{stored.values[0], stored.values[1],
+                               stored.values[2], stored.values[3], stored.values[4]};
+    if (std::abs(candidate.right - candidate.left) > 1000 &&
+        std::abs(candidate.bottom - candidate.top) > 1000 &&
+        candidate.pressure >= 12 && candidate.pressure <= board::kTouchPressureMinimum)
+      calibration_ = candidate;
+  } else if (preferences.getUInt("version", 0) == 1) {
     TouchCalibration candidate{
         preferences.getShort("left", calibration_.left),
         preferences.getShort("right", calibration_.right),
         preferences.getShort("top", calibration_.top),
         preferences.getShort("bottom", calibration_.bottom),
+        board::kTouchPressureMinimum,
     };
     if (std::abs(candidate.right - candidate.left) > 1000 &&
-        std::abs(candidate.bottom - candidate.top) > 1000) {
+        std::abs(candidate.bottom - candidate.top) > 1000 &&
+        candidate.pressure >= 12 && candidate.pressure <= board::kTouchPressureMinimum) {
       calibration_ = candidate;
     }
   }
   preferences.end();
+  touch_.setPressureThreshold(calibration_.pressure);
 }
 
-void DeviceUi::saveCalibration() {
+bool DeviceUi::saveCalibration() {
   Preferences preferences;
-  if (!preferences.begin("codex-touch", false)) return;
-  preferences.clear();
-  preferences.putUInt("version", kCalibrationVersion);
-  preferences.putShort("left", calibration_.left);
-  preferences.putShort("right", calibration_.right);
-  preferences.putShort("top", calibration_.top);
-  preferences.putShort("bottom", calibration_.bottom);
+  if (!preferences.begin("codex-touch", false)) return false;
+  StoredCalibration stored{kCalibrationVersion,
+      {calibration_.left, calibration_.right, calibration_.top,
+       calibration_.bottom, calibration_.pressure}, 0};
+  stored.check = calibrationCheck(stored);
+  const bool saved = preferences.putBytes("calib", &stored, sizeof(stored)) ==
+                     sizeof(stored);
   preferences.end();
+  return saved;
 }
 
 void DeviceUi::loadOrientation() {
@@ -120,18 +147,21 @@ void DeviceUi::applyOrientation() {
   display_.setRotation(inverted_ ? 3 : 1);
 }
 
-bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY) {
+bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY,
+                                       std::int16_t& pressure) {
   const std::uint32_t timeout = millis() + 15000;
   while (static_cast<std::int32_t>(timeout - millis()) > 0) {
     if (touch_.tirqTouched()) {
       std::int32_t sumX = 0;
       std::int32_t sumY = 0;
       std::int16_t samples = 0;
+      std::int16_t weakest = 32767;
       while (touch_.tirqTouched() && samples < 12) {
         const SensitiveTouchPoint point = touch_.getPoint();
-        if (point.z >= board::kTouchPressureMinimum) {
+        if (point.z >= 12) {
           sumX += point.x;
           sumY += point.y;
+          weakest = std::min(weakest, point.z);
           ++samples;
         }
         delay(12);
@@ -143,6 +173,7 @@ bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY) {
       if (samples >= 4) {
         rawX = static_cast<std::int16_t>(sumX / samples);
         rawY = static_cast<std::int16_t>(sumY / samples);
+        pressure = weakest;
         return true;
       }
     }
@@ -153,14 +184,18 @@ bool DeviceUi::captureCalibrationPoint(std::int16_t& rawX, std::int16_t& rawY) {
 
 void DeviceUi::calibrateTouch() {
   setDisplayAwake(true);
+  touch_.setPressureThreshold(12);
   std::int16_t left = 0;
   std::int16_t top = 0;
   std::int16_t right = 0;
   std::int16_t bottom = 0;
+  std::int16_t firstPressure = 0;
+  std::int16_t secondPressure = 0;
 
   // Calibration値は常にrotation 1の物理座標として保存する。
   display_.setRotation(1);
   const auto finish = [this]() {
+    touch_.setPressureThreshold(calibration_.pressure);
     applyOrientation();
     drawAll();
   };
@@ -171,7 +206,10 @@ void DeviceUi::calibrateTouch() {
   display_.drawString("TOUCH 1/2", 160, 120, 2);
   display_.drawLine(14, 24, 34, 24, kAccent);
   display_.drawLine(24, 14, 24, 34, kAccent);
-  if (!captureCalibrationPoint(left, top)) {
+  if (!captureCalibrationPoint(left, top, firstPressure)) {
+    display_.fillScreen(kBackground);
+    display_.drawString("NO TOUCH", 160, 120, 2);
+    delay(1800);
     finish();
     return;
   }
@@ -180,14 +218,28 @@ void DeviceUi::calibrateTouch() {
   display_.drawString("TOUCH 2/2", 160, 120, 2);
   display_.drawLine(285, 215, 305, 215, kAccent);
   display_.drawLine(295, 205, 295, 225, kAccent);
-  if (!captureCalibrationPoint(right, bottom)) {
+  if (!captureCalibrationPoint(right, bottom, secondPressure)) {
+    display_.fillScreen(kBackground);
+    display_.drawString("NO TOUCH", 160, 120, 2);
+    delay(1800);
     finish();
     return;
   }
 
   if (std::abs(right - left) > 1000 && std::abs(bottom - top) > 1000) {
-    calibration_ = {left, right, top, bottom};
-    saveCalibration();
+    const TouchCalibration previous = calibration_;
+    calibration_ = {left, right, top, bottom,
+                    touchThresholdForPressure(std::min(firstPressure, secondPressure))};
+    if (!saveCalibration()) {
+      calibration_ = previous;
+      display_.fillScreen(kBackground);
+      display_.drawString("SAVE FAILED", 160, 120, 2);
+      delay(1800);
+    }
+  } else {
+    display_.fillScreen(kBackground);
+    display_.drawString("INVALID TOUCH", 160, 120, 2);
+    delay(1800);
   }
   finish();
 }
@@ -198,7 +250,7 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
     return false;
   }
   const SensitiveTouchPoint point = touch_.getPoint();
-  if (point.z < board::kTouchPressureMinimum) return false;
+  if (point.z < calibration_.pressure) return false;
   const ScreenPoint oriented = orientPoint(
       {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
                board::kScreenWidth - 1),

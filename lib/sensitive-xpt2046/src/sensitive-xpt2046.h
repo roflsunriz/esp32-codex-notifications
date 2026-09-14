@@ -29,6 +29,7 @@ class SensitiveXpt2046 {
 
   bool begin(SPIClass& spi);
   void setRotation(std::uint8_t rotation) { rotation_ = rotation % 4; }
+  void setPressureThreshold(std::uint16_t threshold) { pressureThreshold_ = threshold; }
   bool tirqTouched() const { return interruptWake_; }
   SensitiveTouchPoint getPoint();
   void wakeFromInterrupt() { interruptWake_ = true; }

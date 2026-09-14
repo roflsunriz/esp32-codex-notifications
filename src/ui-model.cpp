@@ -170,6 +170,10 @@ BootGesture bootGestureForDuration(std::uint32_t durationMs) {
   return BootGesture::RotateScreen;
 }
 
+std::int16_t touchThresholdForPressure(std::int16_t weakestPressure) {
+  return std::max<std::int16_t>(12, std::min<std::int16_t>(120, weakestPressure / 2));
+}
+
 TouchTransition touchTransition(bool captured, bool hasPoint, bool contactActive) {
   if (!captured && hasPoint) return TouchTransition::Press;
   if (captured && !contactActive) return TouchTransition::Release;

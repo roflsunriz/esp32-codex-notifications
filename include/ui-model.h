@@ -86,6 +86,7 @@ enum class StatusKind : std::uint8_t {
 InputAction actionAt(Page page, std::int16_t x, std::int16_t y);
 ScreenPoint orientPoint(ScreenPoint point, bool inverted);
 BootGesture bootGestureForDuration(std::uint32_t durationMs);
+std::int16_t touchThresholdForPressure(std::int16_t weakestPressure);
 TouchTransition touchTransition(bool captured, bool hasPoint, bool contactActive);
 const char* protocolKeyFor(const InputAction& action);
 StatusKind statusKindForColor(std::uint32_t rgb, float brightness);
