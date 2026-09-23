@@ -140,9 +140,24 @@ InputAction navigateActionAt(std::int16_t x, std::int16_t y,
   const Page page = Page::Navigate;
   const std::int16_t contentY =
       static_cast<std::int16_t>(y + clampScroll(scroll));
-  // Scrollbar wins over the encoder area it overlaps.
-  if (x >= kScrollBarX0 - 2 && y >= kScrollBarY0 && y < kScrollBarY1)
-    return {InputKind::NavigateScroll, page, 0, 0.0F};
+  // Scrollbar wins over the encoder area it overlaps. Taps page the
+  // content; drags track the thumb proportionally (see main loop).
+  if (x >= kScrollBarX0 - 2 && y >= kScrollBarY0 && y < kScrollBarY1) {
+    const std::int16_t trackH = kScrollBarY1 - kScrollBarY0;
+    const std::int16_t thumbH = static_cast<std::int16_t>(
+        static_cast<std::int32_t>(kVisibleBottom - kVisibleTop) * trackH /
+        kContentH);
+    const std::int16_t travel = trackH - thumbH;
+    const std::int16_t clamped = clampScroll(scroll);
+    const std::int16_t thumbY =
+        travel <= 0 || kScrollMax <= 0
+            ? kScrollBarY0
+            : static_cast<std::int16_t>(kScrollBarY0 +
+                                        clamped * travel / kScrollMax);
+    const std::int8_t dir =
+        y < thumbY ? -1 : (y >= thumbY + thumbH ? 1 : 0);
+    return {InputKind::NavigateScroll, page, dir, 0.0F};
+  }
   if (contains(x, contentY, 18, 38, 70, 48))
     return {InputKind::Joystick, page, -1, 0.75F};
   if (contains(x, contentY, 18, 150, 70, 48))
@@ -151,11 +166,11 @@ InputAction navigateActionAt(std::int16_t x, std::int16_t y,
     return {InputKind::Joystick, page, -1, 0.50F};
   if (contains(x, contentY, 76, 94, 70, 48))
     return {InputKind::Joystick, page, -1, 0.00F};
-  if (contains(x, contentY, 166, 42, 68, 64))
+  if (contains(x, contentY, 150, 42, 60, 64))
     return {InputKind::EncoderStep, page, 0, 0.0F};
-  if (contains(x, contentY, 244, 42, 68, 64))
+  if (contains(x, contentY, 214, 42, 60, 64))
     return {InputKind::EncoderStep, page, 1, 0.0F};
-  if (contains(x, contentY, 166, 118, 146, 78))
+  if (contains(x, contentY, 166, 118, 106, 78))
     return {InputKind::EncoderPress, page, -1, 0.0F};
   if (x >= 16 && x <= 283) {
     if (contentY >= kMinutesY - kHalfH && contentY < kMinutesY + kHalfH)

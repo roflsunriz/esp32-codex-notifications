@@ -179,6 +179,12 @@ void DeviceUi::setNavigateScroll(std::int16_t scroll) {
   if (displayAwake_ && page_ == Page::Navigate) drawAll();
 }
 
+void DeviceUi::pageNavigateScroll(int dir) {
+  if (dir == 0) return;
+  setNavigateScroll(
+      static_cast<std::int16_t>(navigateScroll_ + dir * 40));
+}
+
 void DeviceUi::applyOrientation() {
   display_.setRotation(inverted_ ? 3 : 1);
 }
@@ -662,15 +668,12 @@ void DeviceUi::drawNavigate() {
   auto visible = [scroll](std::int16_t y, std::int16_t h) {
     return y - scroll + h > kVisibleTop && y - scroll < kVisibleBottom;
   };
-  auto shifted = [scroll](std::int16_t y) {
-    return static_cast<std::int16_t>(y - scroll);
-  };
   if (visible(38, 48)) drawJoystickButton(18, 38, 0.75F, 0, -1);
   if (visible(150, 48)) drawJoystickButton(18, 150, 0.25F, 0, 1);
   if (visible(94, 48)) drawJoystickButton(2, 94, 0.50F, -1, 0);
   if (visible(94, 48)) drawJoystickButton(76, 94, 0.00F, 1, 0);
-  if (visible(42, 64)) drawEncoderStepButton(0, 166, -1);
-  if (visible(42, 64)) drawEncoderStepButton(1, 244, 1);
+  if (visible(42, 64)) drawEncoderStepButton(0, 150, -1);
+  if (visible(42, 64)) drawEncoderStepButton(1, 214, 1);
   if (visible(118, 78)) drawEncoderPressButton();
   const std::uint32_t minutes = minutesPart(sleepTimeoutSec_);
   const std::uint32_t hours = hoursPart(sleepTimeoutSec_);
@@ -682,7 +685,8 @@ void DeviceUi::drawNavigate() {
   };
   auto drawTrack = [&](std::int16_t centerY, std::uint32_t value,
                        std::uint32_t minV, std::uint32_t maxV) {
-    const std::int16_t y = shifted(centerY);
+    const std::int16_t y =
+        static_cast<std::int16_t>(centerY - scroll);
     if (y < kVisibleTop + 8 || y > kVisibleBottom - 8) return;
     display_.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
     const std::int16_t thumbX = sliderXFromValue(value, minV, maxV);
@@ -741,7 +745,7 @@ void DeviceUi::drawPressedAction(const InputAction& action) {
   } else if (action.kind == InputKind::EncoderStep && action.index >= 0 &&
              action.index < 2) {
     const std::uint8_t index = static_cast<std::uint8_t>(action.index);
-    drawEncoderStepButton(index, index == 0 ? 166 : 244, index == 0 ? -1 : 1);
+    drawEncoderStepButton(index, index == 0 ? 150 : 214, index == 0 ? -1 : 1);
   } else if (action.kind == InputKind::EncoderPress) {
     drawEncoderPressButton();
   }
@@ -765,8 +769,8 @@ void DeviceUi::drawEncoderStepButton(std::uint8_t index, std::int16_t x,
       static_cast<std::int16_t>(42 - sleep_menu::clampScroll(navigateScroll_));
   if (scrolled + 64 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
     return;
-  drawButton(x, scrolled, 68, 64, actionIsPressed(InputKind::EncoderStep, index), 0xFFE0);
-  drawArrow(x + 34, scrolled + 32, dx, 0, kText);
+  drawButton(x, scrolled, 60, 64, actionIsPressed(InputKind::EncoderStep, index), 0xFFE0);
+  drawArrow(x + 30, scrolled + 32, dx, 0, kText);
 }
 
 void DeviceUi::drawEncoderPressButton() {
@@ -774,8 +778,8 @@ void DeviceUi::drawEncoderPressButton() {
       static_cast<std::int16_t>(118 - sleep_menu::clampScroll(navigateScroll_));
   if (scrolled + 78 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
     return;
-  drawButton(166, scrolled, 146, 78, actionIsPressed(InputKind::EncoderPress), 0xFFE0);
-  display_.drawCircle(239, scrolled + 39, 25, kText);
-  display_.drawCircle(239, scrolled + 39, 16, kMuted);
-  display_.fillCircle(239, scrolled + 39, 5, kText);
+  drawButton(166, scrolled, 106, 78, actionIsPressed(InputKind::EncoderPress), 0xFFE0);
+  display_.drawCircle(219, scrolled + 39, 25, kText);
+  display_.drawCircle(219, scrolled + 39, 16, kMuted);
+  display_.fillCircle(219, scrolled + 39, 5, kText);
 }

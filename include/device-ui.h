@@ -29,6 +29,7 @@ class DeviceUi {
   void setSleepTimeoutSec(std::uint32_t timeoutSec);
   std::int16_t navigateScroll() const { return navigateScroll_; }
   void setNavigateScroll(std::int16_t scroll);
+  void pageNavigateScroll(int dir);
   void showPressed(const InputAction& action, bool pressed);
   void tick(std::uint32_t now);
 

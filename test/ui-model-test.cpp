@@ -168,7 +168,7 @@ void testNavigationAngles() {
   require(std::abs(actionAt(Page::Navigate, 37, 118).angle - 0.50F) < 0.001F, "左方向");
   require(std::abs(actionAt(Page::Navigate, 111, 118).angle) < 0.001F, "右方向");
   const InputAction decrement = actionAt(Page::Navigate, 200, 74);
-  const InputAction increment = actionAt(Page::Navigate, 278, 74);
+  const InputAction increment = actionAt(Page::Navigate, 244, 74);
   const InputAction press = actionAt(Page::Navigate, 239, 157);
   require(decrement.kind == InputKind::EncoderStep &&
               std::strcmp(protocolKeyFor(decrement), "ENC_CW") == 0,
@@ -185,7 +185,7 @@ void testGapsAndBoundsAreInactive() {
   require(actionAt(Page::Agents, -1, 100).kind == InputKind::None, "画面左外");
   require(actionAt(Page::Agents, 320, 100).kind == InputKind::None, "画面右外");
   require(actionAt(Page::Agents, 104, 80).kind == InputKind::None, "タイル間の隙間");
-  require(actionAt(Page::Navigate, 155, 100).kind == InputKind::None, "操作外領域");
+  require(actionAt(Page::Navigate, 150, 110).kind == InputKind::None, "操作外領域");
 }
 
 void testStatusColors() {

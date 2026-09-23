@@ -29,7 +29,6 @@ constexpr std::uint32_t kBootDebounceMs = 30;
 void press(const InputAction& action) {
   activeAction = action;
   touchActive = true;
-  dragKind = DragKind::None;
   Serial.printf("UI input kind=%u index=%d\n", static_cast<unsigned>(action.kind),
                 static_cast<int>(action.index));
   if (action.kind == InputKind::None) return;
@@ -56,7 +55,6 @@ void press(const InputAction& action) {
     return;
   }
   if (action.kind == InputKind::NavigateScroll) {
-    dragKind = DragKind::Scroll;
     return;
   }
   ui.showPressed(action, true);
@@ -158,13 +156,26 @@ void loop() {
     if (ui.displayAwake()) {
       std::int16_t scroll = 0;
       if (ui.page() == Page::Navigate) scroll = ui.navigateScroll();
-      press(actionAt(ui.page(), x, y, scroll));
+      const InputAction pressed = actionAt(ui.page(), x, y, scroll);
+      press(pressed);
+      // Fix the drag gesture mode at press time. Empty taps and scrollbar
+      // taps become relative scrolls; slider taps keep adjusting.
+      dragKind = DragKind::None;
       if (ui.page() == Page::Navigate &&
-          (dragKind == DragKind::SleepMinutes ||
-           dragKind == DragKind::SleepHours ||
-           dragKind == DragKind::Scroll)) {
+          (pressed.kind == InputKind::SleepMinutes ||
+           pressed.kind == InputKind::SleepHours ||
+           pressed.kind == InputKind::NavigateScroll ||
+           pressed.kind == InputKind::None)) {
+        dragKind = pressed.kind == InputKind::SleepMinutes
+                       ? DragKind::SleepMinutes
+                   : pressed.kind == InputKind::SleepHours
+                       ? DragKind::SleepHours
+                       : DragKind::Scroll;
         dragStartY = y;
         dragStartScroll = ui.navigateScroll();
+      }
+      if (pressed.kind == InputKind::NavigateScroll) {
+        ui.pageNavigateScroll(pressed.index);
       }
     } else {
       wakeDisplay();
