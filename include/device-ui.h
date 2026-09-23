@@ -24,7 +24,6 @@ class DeviceUi {
   void setPage(Page page);
   void toggleRotation();
   Page page() const { return page_; }
-  bool readDragPoint(std::int16_t& x, std::int16_t& y);
   std::uint32_t sleepTimeoutSec() const { return sleepTimeoutSec_; }
   void setSleepTimeoutSec(std::uint32_t timeoutSec);
   void dragSleepSlider(int kind, std::uint32_t newSliderValue);

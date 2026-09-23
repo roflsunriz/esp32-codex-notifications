@@ -1,5 +1,9 @@
 # 引き継ぎ: Navigate画面のスクロール／スライダードラッグ不具合
 
+## 追記（2026-09-23）
+
+後続のコード追跡で、ドラッグ不能の直接原因を確定した。`TouchSampleFilter::push()` は3点安定後の初回だけ `true` を返すが、`DeviceUi::readTouch()` がその値を毎ループの `touched` として返し、`src/main.cpp` のドラッグ条件が `touched && prevPressed` を要求していた。そのため同じ接触の2ループ目からドラッグ処理へ入らず、`readDragPoint()` に到達しなかった。接触座標を `current()` から継続返却し、二重読取をなくした。スクロール描画は中央の内容領域へ限定した。ホストテストとファームウェアビルドは成功したが、修正後の実機ドラッグとちらつきは未確認である。実機確認手順は `verification.md` を参照。
+
 日付: 2026-09-23 / 対象: esp32-codex-notifications / 実機: COM7 Codex Micro (MAC 68:09:47:85:d0:cc)
 
 ## 要旨

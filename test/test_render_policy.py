@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "src" / "device-ui.cpp").read_text(encoding="utf-8")
+MAIN_SOURCE = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
 
 
 def function_body(signature: str) -> str:
@@ -54,6 +55,21 @@ class RenderPolicyTests(unittest.TestCase):
         self.assertIn("fillRoundRect(x - 6, y - 17, 13, 25, 6", body)
         self.assertIn("drawArc(x, y + 2, 14, 13, 270, 90", body)
         self.assertNotIn("drawArc(x, y, 16, 12, 0, 180", body)
+
+    def test_drag_uses_continuous_point_from_the_single_touch_sample(self) -> None:
+        touch_body = function_body("bool DeviceUi::readTouch")
+        self.assertIn("touchFilter_.current(stable)", touch_body)
+        self.assertNotIn("if (!touchFilter_.push", touch_body)
+        self.assertEqual(MAIN_SOURCE.count("ui.readTouch("), 1)
+        self.assertNotIn("readDragPoint", MAIN_SOURCE)
+
+    def test_navigate_redraw_stays_inside_the_content_area(self) -> None:
+        self.assertNotIn("drawAll(", function_body("void DeviceUi::setSleepTimeoutSec"))
+        self.assertNotIn("drawAll(", function_body("void DeviceUi::setNavigateScroll"))
+        self.assertNotIn("drawAll(", function_body("void DeviceUi::refresh"))
+        content_body = function_body("void DeviceUi::drawContent")
+        self.assertIn("display_.setViewport(", content_body)
+        self.assertIn("display_.resetViewport()", content_body)
 
 
 if __name__ == "__main__":

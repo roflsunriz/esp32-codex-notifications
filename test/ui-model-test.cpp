@@ -164,6 +164,32 @@ void testDragTrackingFollowsFingerWithoutRedelivery() {
   require(!filter.current(output), "解放後は現在値なし");
 }
 
+void testNavigateDragKeepsOnePressAndMovesBothControls() {
+  TouchSampleFilter filter;
+  ScreenPoint point;
+  bool captured = false;
+  for (int i = 0; i < 3; ++i) {
+    const bool newTap = filter.push({100, 170}, point);
+    const bool hasPoint = filter.current(point);
+    const TouchTransition transition = touchTransition(captured, hasPoint, true);
+    if (transition == TouchTransition::Press) captured = true;
+    require((transition == TouchTransition::Press) == newTap,
+            "確定座標で一度だけ押下");
+  }
+  for (int i = 0; i < 40; ++i) {
+    require(!filter.push({240, 70}, point), "ドラッグ中は再押下しない");
+    require(filter.current(point), "ドラッグ中も座標を返す");
+    require(touchTransition(captured, true, true) == TouchTransition::None,
+            "ドラッグを別のタップとして扱わない");
+  }
+  require(point.y < 80, "縦ドラッグがスクロールへ届く");
+  require(sleep_menu::sliderValueFromX(point.x, 0U, sleep_menu::kMinutesMax, 1U) >
+              40U,
+          "横ドラッグがスライダーへ届く");
+  require(touchTransition(captured, true, false) == TouchTransition::Release,
+          "接触終了で解放");
+}
+
 void testCommandGridAndProtocolIds() {
   const char* expected[] = {"ACT06", "ACT07", "ACT08", "ACT09", "ACT10", "ACT12"};
   for (int index = 0; index < 6; ++index) {
@@ -309,6 +335,7 @@ int main() {
   testDisconnectTimerHandlesMillisWrap();
   testTouchSamplesMustBeStableBeforePress();
   testDragTrackingFollowsFingerWithoutRedelivery();
+  testNavigateDragKeepsOnePressAndMovesBothControls();
   testCommandGridAndProtocolIds();
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
@@ -317,6 +344,6 @@ int main() {
   testIdleTimeoutSleepsAfterInactivity();
   testSleepSliderMapping();
   testNavigateSleepControls();
-  std::cout << "ui-model: 17 tests passed\n";
+  std::cout << "ui-model: 18 tests passed\n";
   return 0;
 }

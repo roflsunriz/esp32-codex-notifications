@@ -169,7 +169,7 @@ void DeviceUi::setSleepTimeoutSec(std::uint32_t timeoutSec) {
   const std::uint32_t previous = sleepTimeoutSec_;
   sleepTimeoutSec_ = timeoutSec;
   if (!saveSleep()) sleepTimeoutSec_ = previous;
-  if (displayAwake_ && page_ == Page::Navigate) drawAll();
+  if (displayAwake_ && page_ == Page::Navigate) refresh();
 }
 
 void DeviceUi::moveSliderThumb(std::int16_t centerY, std::uint32_t oldValue,
@@ -232,7 +232,7 @@ void DeviceUi::setNavigateScroll(std::int16_t scroll) {
   const std::int16_t clamped = sleep_menu::clampScroll(scroll);
   if (navigateScroll_ == clamped) return;
   navigateScroll_ = clamped;
-  if (displayAwake_ && page_ == Page::Navigate) drawAll();
+  if (displayAwake_ && page_ == Page::Navigate) refresh();
 }
 
 void DeviceUi::pageNavigateScroll(int dir) {
@@ -242,7 +242,10 @@ void DeviceUi::pageNavigateScroll(int dir) {
 }
 
 void DeviceUi::refresh() {
-  if (displayAwake_) drawAll();
+  if (!displayAwake_) return;
+  display_.startWrite();
+  drawContent();
+  display_.endWrite();
 }
 
 void DeviceUi::applyOrientation() {
@@ -352,28 +355,10 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
     return false;
   }
   const SensitiveTouchPoint point = touch_.getPoint();
-  if (point.z < calibration_.pressure) return false;
-  const ScreenPoint oriented = orientPoint(
-      {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
-               board::kScreenWidth - 1),
-       mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
-               board::kScreenHeight - 1)},
-      inverted_);
-  ScreenPoint stabilized;
-  if (!touchFilter_.push(oriented, stabilized)) return false;
-  x = stabilized.x;
-  y = stabilized.y;
-  return true;
-}
-
-bool DeviceUi::readDragPoint(std::int16_t& x, std::int16_t& y) {
-  // Tap path uses the smoothed filter output; drags must follow the same
-  // source so lightening pressure does not freeze or flap the contact.
   if (!touch_.tirqTouched()) {
     touchFilter_.reset();
     return false;
   }
-  const SensitiveTouchPoint point = touch_.getPoint();
   if (point.z >= calibration_.pressure) {
     const ScreenPoint oriented = orientPoint(
         {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
@@ -382,12 +367,9 @@ bool DeviceUi::readDragPoint(std::int16_t& x, std::int16_t& y) {
                  board::kScreenHeight - 1)},
         inverted_);
     ScreenPoint stabilized;
-    if (touchFilter_.push(oriented, stabilized)) {
-      x = stabilized.x;
-      y = stabilized.y;
-      return true;
-    }
+    touchFilter_.push(oriented, stabilized);
   }
+  // push() reports a new tap once; current() follows the same contact.
   ScreenPoint stable;
   if (!touchFilter_.current(stable)) return false;
   x = stable.x;
@@ -548,7 +530,12 @@ void DeviceUi::drawContent() {
   display_.fillRect(0, 28, 320, 180, kBackground);
   if (page_ == Page::Agents) drawAgents();
   if (page_ == Page::Commands) drawCommands();
-  if (page_ == Page::Navigate) drawNavigate();
+  if (page_ == Page::Navigate) {
+    display_.setViewport(0, sleep_menu::kVisibleTop, board::kScreenWidth,
+                         sleep_menu::kVisibleBottom - sleep_menu::kVisibleTop, false);
+    drawNavigate();
+    display_.resetViewport();
+  }
 }
 
 void DeviceUi::drawHeader() {

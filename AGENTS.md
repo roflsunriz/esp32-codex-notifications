@@ -24,6 +24,7 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 
 - DesktopのAuto-dim同期とは別に、本体側の無操作タイマー（`DisplayPowerSync` のアイドル期限、タッチ操作で延長）を備える。Navigate画面下部の0〜59分・0〜24時間スライダーで設定し、NVS `codex-ui` の `sleep_sec` へ保存する。0分0時間は無効（Desktop同期だけ）になる。ポーリング取得はないため取得間隔スライダーは付けない。
 - Navigate画面はスクロール対応で、内容ドラッグで移動し、スライダーはドラッグで追従する。スクロールバーはエンコーダ域と重なるため判定を優先する。タッチ面の校正範囲は画面24..295のため、操作子はその範囲へ収める。
+- 2026-09-23のコード追跡で、`TouchSampleFilter::push()` は安定点の確定時だけ `true` を返すため、それを毎ループの接触状態に使うとドラッグ条件が成立しないことを確認した。`DeviceUi::readTouch()` は `current()` の追従座標を毎回返し、`src/main.cpp` はその1回の読みをドラッグにも使う。接触終了はIRQで判定し、BLEキー解放にドラッグ専用の猶予を混ぜない（`test/ui-model-test.cpp`、`test/test_render_policy.py`）。実機での追従・描画確認は `verification.md` を参照。
 
 ## タッチ調整（2026-09-14、実機未検証）
 

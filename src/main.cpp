@@ -192,34 +192,29 @@ void loop() {
   if (touched && prevPressed && ui.displayAwake() &&
       ui.page() == Page::Navigate && dragKind != DragKind::None &&
       static_cast<std::uint32_t>(millis() - lastDragDrawMs) >= 80U) {
-    std::int16_t dragX = 0;
-    std::int16_t dragY = 0;
-    if (ui.readDragPoint(dragX, dragY)) {
-      if (dragKind == DragKind::Scroll) {
-        const std::int32_t delta =
-            static_cast<std::int32_t>(dragStartY) - dragY;
-        if (delta < -6 || delta > 6) {
-          const std::int16_t target = sleep_menu::clampScroll(
-              static_cast<int>(dragStartScroll) + delta);
-          if (target != ui.navigateScroll() &&
-              (target - ui.navigateScroll() < -5 ||
-               target - ui.navigateScroll() > 5)) {
-            ui.setNavigateScroll(target);
-            lastDragDrawMs = millis();
-          }
-        }
-      } else if (dragX >= 16 && dragX <= 283) {
-        if (dragKind == DragKind::SleepMinutes) {
-          const std::uint32_t minutes = sleep_menu::sliderValueFromX(
-              dragX, 0U, sleep_menu::kMinutesMax, 1U);
-          ui.dragSleepSlider(1, minutes);
-          lastDragDrawMs = millis();
-        } else {
-          const std::uint32_t hours = sleep_menu::sliderValueFromX(
-              dragX, 0U, sleep_menu::kHoursMax, 1U);
-          ui.dragSleepSlider(2, hours);
+    if (dragKind == DragKind::Scroll) {
+      const std::int32_t delta = static_cast<std::int32_t>(dragStartY) - y;
+      if (delta < -6 || delta > 6) {
+        const std::int16_t target = sleep_menu::clampScroll(
+            static_cast<int>(dragStartScroll) + delta);
+        if (target != ui.navigateScroll() &&
+            (target - ui.navigateScroll() < -5 ||
+             target - ui.navigateScroll() > 5)) {
+          ui.setNavigateScroll(target);
           lastDragDrawMs = millis();
         }
+      }
+    } else if (x >= 16 && x <= 283) {
+      if (dragKind == DragKind::SleepMinutes) {
+        const std::uint32_t minutes = sleep_menu::sliderValueFromX(
+            x, 0U, sleep_menu::kMinutesMax, 1U);
+        ui.dragSleepSlider(1, minutes);
+        lastDragDrawMs = millis();
+      } else {
+        const std::uint32_t hours = sleep_menu::sliderValueFromX(
+            x, 0U, sleep_menu::kHoursMax, 1U);
+        ui.dragSleepSlider(2, hours);
+        lastDragDrawMs = millis();
       }
     }
   }

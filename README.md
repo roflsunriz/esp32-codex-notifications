@@ -24,7 +24,7 @@ ESP32-2432S028R（ILI9341 / XPT2046、通称 CYD）を、ChatGPT Desktop の Cod
 
 1. 6分割アイコン: Agent 1〜6の状態と通知
 2. 稲妻アイコン: Fast、承認、拒否、フォーク、マイク、送信
-3. 十字アイコン: 上下左右、左でダイヤル値を減少、右で増加、ダイヤル押下。下へスクロールすると自動消灯メニュー（0〜59分のスライダーと0〜24時間のスライダー）があり、0分0時間は自動消灯オフ（常時点灯）と同じです。
+3. 十字アイコン: 上下左右、左でダイヤル値を減少、右で増加、ダイヤル押下。空き領域を上下にドラッグすると自動消灯メニュー（0〜59分と0〜24時間のスライダー）が現れます。スライダーは左右にドラッグして調整します。0分0時間は本体側タイマーを無効にし、DesktopのAuto-dimには従います。
 
 Command画面の6記号は、公式Codex Microの固定キー記号と同じ既定操作の目印です。ChatGPT DesktopでCommand Keyの割り当てを変更しても、デバイス向け通信には割り当て名やアイコンが含まれないため、画面の記号は変わりません。
 
@@ -81,13 +81,13 @@ pio device monitor
 Windowsではダウンロード後に次のように検証できます。
 
 ```powershell
-Get-FileHash .\esp32-codex-notifications-v0.3.2-merged.bin -Algorithm SHA256
+Get-FileHash .\esp32-codex-notifications-v0.4.0-merged.bin -Algorithm SHA256
 ```
 
 値が `SHA256SUMS.txt` と一致したら、初回導入ではmergedイメージを0x0へ書き込みます。この操作はBluetooth bonding、タッチ調整、画面方向を含むNVS設定を初期化します。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.3.2-merged.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notifications-v0.4.0-merged.bin
 ```
 
 `COM3` は実際のCH340ポートに置き換えてください。各Release assetにはGitHub Actionsのbuild provenance attestationも付与します。
@@ -95,7 +95,7 @@ python -m esptool --chip esp32 --port COM3 write_flash 0x0 .\esp32-codex-notific
 既に本ファームウェアを利用中で設定を維持する更新では、`*-firmware.bin` を0x10000へ書き込みます。
 
 ```powershell
-python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.3.2-firmware.bin
+python -m esptool --chip esp32 --port COM3 write_flash 0x10000 .\esp32-codex-notifications-v0.4.0-firmware.bin
 ```
 
 ## Bluetooth接続
@@ -141,7 +141,7 @@ macOSでは同じBLEプロトコルのM5Stack Core2公開実装が検証され�
 
 押圧感度の保存経路はビルドとホストテストまで確認済みで、実機操作は[検証手順](verification.md)に残っています。
 
-付属タッチペンの短い押下を認識しやすくするため、XPT2046の初期圧力閾値は120とし、調整で実測した軽い押下に合わせて下げられます。抵抗膜式なので表面をわずかに押し込む必要があります。ノイズによる誤操作を防ぐため、近い座標を3回連続して取得した場合だけ押下が成立します。ドラッグではなくボタン中央を短く押してください。
+付属タッチペンの短い押下を認識しやすくするため、XPT2046の初期圧力閾値は120とし、調整で実測した軽い押下に合わせて下げられます。抵抗膜式なので表面をわずかに押し込む必要があります。ノイズによる誤操作を防ぐため、近い座標を3回連続して取得した場合だけ押下が成立します。ボタンは中央を短く押してください。
 
 ## 安全性と制約
 
@@ -151,7 +151,7 @@ macOSでは同じBLEプロトコルのM5Stack Core2公開実装が検証され�
 - USB端子は給電・書き込み用です。Codex Micro互換通信はBLEのみです。
 - 基板にバッテリー計測機能がないため、互換ステータスでは100%を返します。
 
-解析根拠と通信仕様は [docs/protocol.md](docs/protocol.md)、更新方法は [how-to-update.md](how-to-update.md) を参照してください。
+解析根拠と通信仕様は [docs/protocol.md](docs/protocol.md)、更新方法は [how-to-update.md](how-to-update.md)、不具合の報告方法は [SUPPORT.md](SUPPORT.md) を参照してください。開発への参加は [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の報告は [SECURITY.md](SECURITY.md) にまとめています。
 
 ## ライセンス
 
