@@ -71,6 +71,21 @@ class RenderPolicyTests(unittest.TestCase):
         self.assertIn("display_.setViewport(", content_body)
         self.assertIn("display_.resetViewport()", content_body)
 
+    def test_navigate_updates_are_buffered_before_pushing_pixels(self) -> None:
+        refresh_body = function_body("void DeviceUi::refresh")
+        self.assertIn("contentSprite_.fillSprite(kBackground)", refresh_body)
+        self.assertIn("drawNavigate()", refresh_body)
+        self.assertIn("contentSprite_.pushSprite(", refresh_body)
+        self.assertLess(refresh_body.index("drawNavigate()"),
+                        refresh_body.index("contentSprite_.pushSprite("))
+
+    def test_header_is_continuous_and_connection_is_drawn_above_it(self) -> None:
+        header = function_body("void DeviceUi::drawHeader")
+        self.assertIn("board::kScreenWidth", header)
+        self.assertLess(header.index("display_.fillRect("), header.index("drawConnection()"))
+        self.assertIn("kPanel", function_body("void DeviceUi::drawNotification"))
+        self.assertIn("kPanel", function_body("void DeviceUi::drawConnection"))
+
 
 if __name__ == "__main__":
     unittest.main()

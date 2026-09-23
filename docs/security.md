@@ -1,6 +1,6 @@
 # セキュリティ監査
 
-更新日: 2026-08-23
+更新日: 2026-09-23
 
 ## Releaseビルド環境
 
@@ -45,5 +45,7 @@ Arduino-ESP32 2.0.17が該当する次のadvisoryは、対象機能をリンク�
 | --- | --- | --- |
 | `GHSA-9vfw-wx65-c872` | `HTTPUpdateServer` / OTA Web updaterのCSRF | Wi-Fi、WebServer、OTAを使用しない |
 | `GHSA-8cmm-3887-r32j` | `WebServer` multipart upload parser | WebServerとupload handlerを使用しない |
+
+2026-09-23に[Arduino-ESP32の公式advisory一覧](https://github.com/espressif/arduino-esp32/security/advisories)を再確認した。追加のWebServer系（`GHSA-vqp8-ppw3-8mc7`、`GHSA-w887-pg2w-mfj2`、`GHSA-28hv-fwm3-rpcq`、`GHSA-5476-9jjq-563m`）、[NetBIOS](https://github.com/espressif/arduino-esp32/security/advisories/GHSA-92j9-c75g-2c5f)、OTAの公式サンプル、上流リポジトリのCI workflowに関する報告がある。本プロジェクトの`src/`、`include/`、`lib/`にはWi-Fi、WebServer、NetBIOS、OTAの利用がなく、PlatformIOの依存グラフにもこれらのライブラリはない。上流のDangerJS・Wokwi workflowも使用していない。これらを導入する際はadvisoryごとに影響版と修正版を再確認する。
 
 Wi-Fi、WebServer、HTTP update、OTAのいずれかを追加する場合は、Arduino-ESP32 3.3.8以降へ移行し、BLE HID、TFT、タッチの実機回帰を完了するまでReleaseしてはいけません。

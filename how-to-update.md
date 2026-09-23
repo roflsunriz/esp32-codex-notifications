@@ -44,7 +44,7 @@ pio device monitor
 
 1. `src/codex-micro-ble.cpp` のファームウェアバージョン、`CHANGELOG.md`、`docs/releases/vX.Y.Z.md` を同じバージョンへ更新します。
 2. CIが成功したmainのコミットへ注釈付きタグ `vX.Y.Z` を付けます。
-3. タグをpushすると `Release firmware` workflowがテスト、静的解析、ビルド、mergedイメージ生成、SHA-256生成、provenance attestation、GitHub Release公開を順番に行います。
+3. タグをpushすると `Release firmware` workflowがテスト、静的解析、ビルド、mergedイメージ生成、SHA-256生成、provenance attestation、該当版のCHANGELOG節を含む本文生成、GitHub Release公開を順番に行います。
 4. workflow成功後、Releaseのasset名、サイズ、`SHA256SUMS.txt`、attestationを確認します。
 
 ローカルでReleaseと同じ配布物を作る場合は次を実行します。

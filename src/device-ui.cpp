@@ -30,6 +30,7 @@ std::uint16_t calibrationCheck(const StoredCalibration& record) {
 constexpr std::uint32_t kOrientationVersion = 1;
 constexpr std::uint32_t kNotificationDurationMs = 4000;
 constexpr std::uint32_t kAnimationIntervalMs = 90;
+constexpr std::int16_t kNavigateStripeHeight = 24;
 
 std::int16_t mapAxis(std::int16_t raw, std::int16_t rawStart, std::int16_t rawEnd,
                      std::int16_t screenStart, std::int16_t screenEnd,
@@ -243,6 +244,30 @@ void DeviceUi::pageNavigateScroll(int dir) {
 
 void DeviceUi::refresh() {
   if (!displayAwake_) return;
+  if (page_ == Page::Navigate) {
+    if (!contentSprite_.created()) {
+      contentSprite_.setColorDepth(16);
+      contentSprite_.setTextWrap(false);
+      if (contentSprite_.createSprite(board::kScreenWidth, kNavigateStripeHeight) == nullptr) {
+        Serial.println("UI navigate buffer unavailable");
+      }
+    }
+    if (contentSprite_.created()) {
+      for (std::int16_t top = sleep_menu::kVisibleTop;
+           top < sleep_menu::kVisibleBottom; top += kNavigateStripeHeight) {
+        contentSprite_.fillSprite(kBackground);
+        drawingTarget_ = &contentSprite_;
+        drawingOffsetY_ = top;
+        drawNavigate();
+        drawingTarget_ = &display_;
+        drawingOffsetY_ = 0;
+        contentSprite_.pushSprite(0, top, 0, 0, board::kScreenWidth,
+                                  std::min<std::int16_t>(kNavigateStripeHeight,
+                                      sleep_menu::kVisibleBottom - top));
+      }
+      return;
+    }
+  }
   display_.startWrite();
   drawContent();
   display_.endWrite();
@@ -539,9 +564,9 @@ void DeviceUi::drawContent() {
 }
 
 void DeviceUi::drawHeader() {
-  display_.fillRect(0, 0, 320, 28, kBackground);
+  display_.fillRect(0, 0, board::kScreenWidth, sleep_menu::kVisibleTop, kPanel);
   display_.setTextDatum(ML_DATUM);
-  display_.setTextColor(kText, kBackground);
+  display_.setTextColor(kText, kPanel);
   display_.drawString("CODEX", 8, 14, 2);
 
   drawNotification();
@@ -549,14 +574,14 @@ void DeviceUi::drawHeader() {
 }
 
 void DeviceUi::drawNotification() {
-  display_.fillRect(124, 0, 116, 28, kBackground);
+  display_.fillRect(124, 0, 116, sleep_menu::kVisibleTop, kPanel);
 
   if (notificationAgent_ >= 0) {
     const ThreadLight& light = state_.threads[notificationAgent_];
     const std::uint16_t color = lightColor(light);
-    display_.fillRoundRect(128, 3, 106, 22, 5, kPanel);
+    display_.fillRoundRect(128, 3, 106, 22, 5, kPanelPressed);
     display_.setTextDatum(MC_DATUM);
-    display_.setTextColor(kText, kPanel);
+    display_.setTextColor(kText, kPanelPressed);
     char label[8];
     snprintf(label, sizeof(label), "A%d", static_cast<int>(notificationAgent_) + 1);
     display_.drawString(label, 153, 14, 2);
@@ -565,7 +590,7 @@ void DeviceUi::drawNotification() {
 }
 
 void DeviceUi::drawConnection() {
-  display_.fillRect(280, 0, 40, 28, kBackground);
+  display_.fillRect(280, 0, 40, sleep_menu::kVisibleTop, kPanel);
   const std::uint16_t connectionColor = state_.connected ? 0x07E0 : 0xF800;
   display_.drawLine(286, 8, 286, 20, connectionColor);
   display_.drawLine(286, 8, 294, 14, connectionColor);
@@ -625,8 +650,9 @@ bool DeviceUi::actionIsPressed(InputKind kind, std::int8_t index) const {
 
 void DeviceUi::drawButton(std::int16_t x, std::int16_t y, std::int16_t width,
                           std::int16_t height, bool pressed, std::uint16_t border) {
-  display_.fillRoundRect(x, y, width, height, 6, pressed ? kPanelPressed : kPanel);
-  display_.drawRoundRect(x, y, width, height, 6, border);
+  drawingTarget_->fillRoundRect(x, y, width, height, 6,
+                                pressed ? kPanelPressed : kPanel);
+  drawingTarget_->drawRoundRect(x, y, width, height, 6, border);
 }
 
 void DeviceUi::drawAgents() {
@@ -719,18 +745,27 @@ void DeviceUi::drawArrow(std::int16_t x, std::int16_t y, std::int8_t dx,
                          std::int8_t dy, std::uint16_t color) {
   const std::int16_t endX = x + dx * 14;
   const std::int16_t endY = y + dy * 14;
-  display_.drawLine(x - dx * 7, y - dy * 7, endX, endY, color);
-  display_.drawLine(endX, endY, endX - dx * 7 + dy * 6,
-                    endY - dy * 7 - dx * 6, color);
-  display_.drawLine(endX, endY, endX - dx * 7 - dy * 6,
-                    endY - dy * 7 + dx * 6, color);
+  drawingTarget_->drawLine(x - dx * 7, y - dy * 7, endX, endY, color);
+  drawingTarget_->drawLine(endX, endY, endX - dx * 7 + dy * 6,
+                           endY - dy * 7 - dx * 6, color);
+  drawingTarget_->drawLine(endX, endY, endX - dx * 7 - dy * 6,
+                           endY - dy * 7 + dx * 6, color);
+}
+
+bool DeviceUi::navigateVisible(std::int16_t screenY, std::int16_t height) const {
+  if (screenY + height <= sleep_menu::kVisibleTop ||
+      screenY >= sleep_menu::kVisibleBottom) return false;
+  return drawingTarget_ != &contentSprite_ ||
+         (screenY + height > drawingOffsetY_ &&
+          screenY < drawingOffsetY_ + kNavigateStripeHeight);
 }
 
 void DeviceUi::drawNavigate() {
   using namespace sleep_menu;
+  TFT_eSPI& canvas = *drawingTarget_;
   const std::int16_t scroll = clampScroll(navigateScroll_);
-  auto visible = [scroll](std::int16_t y, std::int16_t h) {
-    return y - scroll + h > kVisibleTop && y - scroll < kVisibleBottom;
+  auto visible = [this, scroll](std::int16_t y, std::int16_t h) {
+    return navigateVisible(y - scroll, h);
   };
   if (visible(38, 48)) drawJoystickButton(18, 38, 0.75F, 0, -1);
   if (visible(150, 48)) drawJoystickButton(18, 150, 0.25F, 0, 1);
@@ -741,23 +776,26 @@ void DeviceUi::drawNavigate() {
   if (visible(118, 78)) drawEncoderPressButton();
   const std::uint32_t minutes = minutesPart(sleepTimeoutSec_);
   const std::uint32_t hours = hoursPart(sleepTimeoutSec_);
-  display_.setTextDatum(TL_DATUM);
+  canvas.setTextDatum(TL_DATUM);
   auto drawLabel = [&](std::int16_t y, const char* text) {
     if (y - scroll < kVisibleTop || y - scroll > kVisibleBottom - 16) return;
-    display_.setTextColor(kText, kBackground);
-    display_.drawString(text, 8, y - scroll, 2);
+    if (!navigateVisible(y - scroll, 16)) return;
+    canvas.setTextColor(kText, kBackground);
+    canvas.drawString(text, 8, y - scroll - drawingOffsetY_, 2);
   };
   auto drawTrack = [&](std::int16_t centerY, std::uint32_t value,
                        std::uint32_t minV, std::uint32_t maxV) {
-    const std::int16_t y =
+    const std::int16_t screenY =
         static_cast<std::int16_t>(centerY - scroll);
-    if (y < kVisibleTop + 8 || y > kVisibleBottom - 8) return;
-    display_.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
+    if (screenY < kVisibleTop + 8 || screenY > kVisibleBottom - 8) return;
+    if (!navigateVisible(screenY - 6, 13)) return;
+    const std::int16_t y = screenY - drawingOffsetY_;
+    canvas.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
     const std::int16_t thumbX = sliderXFromValue(value, minV, maxV);
     if (thumbX > kTrackX0)
-      display_.fillRect(kTrackX0, y - 2, thumbX - kTrackX0, 5, kAccent);
-    display_.fillRect(thumbX - 6, y - 6, 12, 13, kText);
-    display_.fillRect(thumbX - 4, y - 4, 8, 9, kPanel);
+      canvas.fillRect(kTrackX0, y - 2, thumbX - kTrackX0, 5, kAccent);
+    canvas.fillRect(thumbX - 6, y - 6, 12, 13, kText);
+    canvas.fillRect(thumbX - 4, y - 4, 8, 9, kPanel);
   };
   char line[32];
   if (sleepTimeoutSec_ == 0U) {
@@ -784,8 +822,8 @@ void DeviceUi::drawNavigate() {
           ? kScrollBarY0
           : static_cast<std::int16_t>(kScrollBarY0 +
                                       scroll * travel / kScrollMax);
-  display_.drawRect(kScrollBarX0, kScrollBarY0, 12, trackH, kPanel);
-  display_.fillRect(kScrollBarX0 + 2, thumbY, 8, thumbH, kText);
+  canvas.drawRect(kScrollBarX0, kScrollBarY0 - drawingOffsetY_, 12, trackH, kPanel);
+  canvas.fillRect(kScrollBarX0 + 2, thumbY - drawingOffsetY_, 8, thumbH, kText);
 }
 
 void DeviceUi::drawPressedAction(const InputAction& action) {
@@ -817,10 +855,10 @@ void DeviceUi::drawPressedAction(const InputAction& action) {
 
 void DeviceUi::drawJoystickButton(std::int16_t x, std::int16_t y, float angle,
                                    std::int8_t dx, std::int8_t dy) {
-  const std::int16_t scrolled =
+  const std::int16_t screenY =
       static_cast<std::int16_t>(y - sleep_menu::clampScroll(navigateScroll_));
-  if (scrolled + 48 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
-    return;
+  if (!navigateVisible(screenY, 48)) return;
+  const std::int16_t scrolled = screenY - drawingOffsetY_;
   drawButton(x, scrolled, 70, 48,
              actionIsPressed(InputKind::Joystick) && pressedAction_.angle == angle,
              kAccent);
@@ -829,21 +867,21 @@ void DeviceUi::drawJoystickButton(std::int16_t x, std::int16_t y, float angle,
 
 void DeviceUi::drawEncoderStepButton(std::uint8_t index, std::int16_t x,
                                      std::int8_t dx) {
-  const std::int16_t scrolled =
+  const std::int16_t screenY =
       static_cast<std::int16_t>(42 - sleep_menu::clampScroll(navigateScroll_));
-  if (scrolled + 64 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
-    return;
+  if (!navigateVisible(screenY, 64)) return;
+  const std::int16_t scrolled = screenY - drawingOffsetY_;
   drawButton(x, scrolled, 60, 64, actionIsPressed(InputKind::EncoderStep, index), 0xFFE0);
   drawArrow(x + 30, scrolled + 32, dx, 0, kText);
 }
 
 void DeviceUi::drawEncoderPressButton() {
-  const std::int16_t scrolled =
+  const std::int16_t screenY =
       static_cast<std::int16_t>(118 - sleep_menu::clampScroll(navigateScroll_));
-  if (scrolled + 78 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
-    return;
+  if (!navigateVisible(screenY, 78)) return;
+  const std::int16_t scrolled = screenY - drawingOffsetY_;
   drawButton(166, scrolled, 106, 78, actionIsPressed(InputKind::EncoderPress), 0xFFE0);
-  display_.drawCircle(219, scrolled + 39, 25, kText);
-  display_.drawCircle(219, scrolled + 39, 16, kMuted);
-  display_.fillCircle(219, scrolled + 39, 5, kText);
+  drawingTarget_->drawCircle(219, scrolled + 39, 25, kText);
+  drawingTarget_->drawCircle(219, scrolled + 39, 16, kMuted);
+  drawingTarget_->fillCircle(219, scrolled + 39, 5, kText);
 }

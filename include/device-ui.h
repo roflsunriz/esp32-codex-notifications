@@ -64,6 +64,7 @@ class DeviceUi {
   void drawCommands();
   void drawCommand(std::uint8_t index);
   void drawNavigate();
+  bool navigateVisible(std::int16_t screenY, std::int16_t height) const;
   void drawPressedAction(const InputAction& action);
   void drawJoystickButton(std::int16_t x, std::int16_t y, float angle,
                           std::int8_t dx, std::int8_t dy);
@@ -86,6 +87,9 @@ class DeviceUi {
   bool actionIsPressed(InputKind kind, std::int8_t index = -1) const;
 
   TFT_eSPI display_;
+  TFT_eSprite contentSprite_{&display_};
+  TFT_eSPI* drawingTarget_ = &display_;
+  std::int16_t drawingOffsetY_ = 0;
   SPIClass touchBus_;
   SensitiveXpt2046 touch_;
   TouchCalibration calibration_;

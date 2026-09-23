@@ -4,9 +4,12 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-23
+
 ### Fixed
 
 - Navigate画面で接触中の座標がドラッグ処理へ届かず、スクロールと自動消灯スライダーが追従しない問題を修正した。接触を1ループに1回読み、内容の再描画範囲を画面中央へ限定した。
+- Navigateのスクロールとスライダー操作で中央領域が消えてちらつく問題を防ぐため、更新内容を小さな描画バッファで帯ごとに完成させてから画面へ転送するようにした。ヘッダーを端まで連続させ、Bluetoothアイコンをその上へ描くようにした。
 - 0分0時間でもDesktopのAuto-dimは有効であることが分かるよう、Navigate画面の「常時点灯」表示を本体側タイマーの無効表示へ変更した。
 
 ### Added
@@ -99,7 +102,8 @@
 - ペンを離す前の圧力揺れを別の押下として扱い、タブ切替後の上部ボタンへ操作が漏れる問題を、IRQ解放まで接触をロックして修正した。
 - キャリブレーション後に無操作でもタスクやボタンが発火する問題を防ぐため、近い座標の3回連続取得を必須にし、単発ノイズと座標飛びを破棄した。
 
-[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/roflsunriz/esp32-codex-notifications/compare/v0.3.1...v0.3.2
