@@ -8,6 +8,7 @@
 - ホストの`ui-model`テスト18件、Python単体テスト13件、`pio run -e cyd` と配布物生成が成功した。`pio check -e cyd --skip-packages` は終了コード0だが、依存先ArduinoJson内の警告を含む。CMakeはこのWindows環境で`PATH`/`Path`の重複によりMSBuildのコンパイラ試験が失敗したため、同じC++ソースをclang++で直接コンパイルして18件を実行した。`pip-audit -r requirements-ci.txt` は既存の限定除外を適用して既知の新規脆弱性なし。
 - COM7基板（MAC 68:09:47:85:d0:cc）の全4,194,304バイトを `.local/backups/micro-com7-20260923.bin` へ退避し、`verify-flash` のdigest一致を確認した。退避データにCodex Micro識別子があり他機種識別子がないことを確認した。
 - 2026-09-23に所有者の指示でCOM7へv0.4.1候補をアプリ領域だけ書き込み、esptoolの書込ハッシュ照合に成功した。初回候補では空き領域とスライダーのドラッグ追従は改善したが、スクロールとスライダーのちらつきが残った。`drawContent()` が画面中央を先に消す経路を帯状バッファ描画へ変更して再書き込みした。所有者は空き領域スクロール、両スライダー、ヘッダーとBluetoothアイコンが正常で、ちらつき・表示欠け・再起動がないことを確認した。RST後も設定値の保持とAgent/Commandのタップが正常だった。再書き込み後の60秒シリアル監視にも `CODEX_CYD_READY` の再出力や例外はなかった。
+- [main CI](https://github.com/roflsunriz/esp32-codex-notifications/actions/runs/35830800901) と [v0.4.1 Release workflow](https://github.com/roflsunriz/esp32-codex-notifications/actions/runs/35831045707) は成功した。[公開Release](https://github.com/roflsunriz/esp32-codex-notifications/releases/tag/v0.4.1) はdraftではない。公開した3資産は `SHA256SUMS.txt` と一致し、bundle内の4部品はmanifestのSHA-256と一致、bundle内のfirmware・mergedイメージは外側の配布物と一致した。4資産すべてのGitHub provenanceを署名元workflowまで検証し、firmwareは `refs/tags/v0.4.1` とコミット `20f9d769955440eeb3cec1216c09c26bbdd12ead` への結び付きも確認した。ReleaseのファームウェアはCIでタグから再ビルドされるため、実機で書き込んだローカルビルドとバイト列は同一ではない。
 
 実機での確認順序:
 

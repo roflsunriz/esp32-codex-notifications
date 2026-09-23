@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- v0.4.1の配布物を利用者が検証できるよう、公開資産のハッシュ、bundleのmanifest、GitHub provenanceの確認結果を検証文書へ記録した。
+
 ## [0.4.1] - 2026-09-23
 
 ### Fixed
