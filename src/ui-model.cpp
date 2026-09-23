@@ -193,12 +193,13 @@ ScreenPoint orientPoint(ScreenPoint point, bool inverted) {
 
 bool TouchSampleFilter::push(ScreenPoint sample, ScreenPoint& stabilized) {
   if (delivered_) {
-    // Keep tracking the finger for drags; the tap itself stays one-shot.
-    sumX_ += sample.x;
-    sumY_ += sample.y;
-    ++count_;
-    stabilized = {static_cast<std::int16_t>(sumX_ / count_),
-                  static_cast<std::int16_t>(sumY_ / count_)};
+    // Keep tracking the finger for drags with a bounded moving average.
+    // The tap itself stays one-shot. A plain accumulator would overflow
+    // count_ and divide by zero on long holds.
+    emaX_ += (static_cast<std::int32_t>(sample.x) - emaX_) / 4;
+    emaY_ += (static_cast<std::int32_t>(sample.y) - emaY_) / 4;
+    stabilized = {static_cast<std::int16_t>(emaX_),
+                  static_cast<std::int16_t>(emaY_)};
     last_ = stabilized;
     return false;
   }
@@ -219,6 +220,8 @@ bool TouchSampleFilter::push(ScreenPoint sample, ScreenPoint& stabilized) {
   stabilized = {static_cast<std::int16_t>(sumX_ / count_),
                 static_cast<std::int16_t>(sumY_ / count_)};
   last_ = stabilized;
+  emaX_ = stabilized.x;
+  emaY_ = stabilized.y;
   delivered_ = true;
   return true;
 }
@@ -228,6 +231,8 @@ void TouchSampleFilter::reset() {
   sumY_ = 0;
   count_ = 0;
   delivered_ = false;
+  emaX_ = 0;
+  emaY_ = 0;
 }
 
 BootGesture bootGestureForDuration(std::uint32_t durationMs) {

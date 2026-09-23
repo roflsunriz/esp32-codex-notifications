@@ -115,6 +115,10 @@ void updateBootGesture(std::uint32_t now) {
 
 void release() {
   if (!touchActive) return;
+  if (dragKind != DragKind::None) {
+    // Settle the throttled drag position on release.
+    ui.refresh();
+  }
   dragKind = DragKind::None;
   if (activeAction.kind == InputKind::AgentKey) {
     codex.sendKey(protocolKeyFor(activeAction), 0, activeAction.index);
@@ -197,29 +201,24 @@ void loop() {
         if (delta < -6 || delta > 6) {
           const std::int16_t target = sleep_menu::clampScroll(
               static_cast<int>(dragStartScroll) + delta);
-          if (target != ui.navigateScroll()) {
+          if (target != ui.navigateScroll() &&
+              (target - ui.navigateScroll() < -5 ||
+               target - ui.navigateScroll() > 5)) {
             ui.setNavigateScroll(target);
             lastDragDrawMs = millis();
           }
         }
       } else if (dragX >= 16 && dragX <= 283) {
-        const std::uint32_t current = ui.sleepTimeoutSec();
         if (dragKind == DragKind::SleepMinutes) {
           const std::uint32_t minutes = sleep_menu::sliderValueFromX(
               dragX, 0U, sleep_menu::kMinutesMax, 1U);
-          if (minutes != sleep_menu::minutesPart(current)) {
-            ui.setSleepTimeoutSec(sleep_menu::timeoutFromParts(
-                minutes, sleep_menu::hoursPart(current)));
-            lastDragDrawMs = millis();
-          }
+          ui.dragSleepSlider(1, minutes);
+          lastDragDrawMs = millis();
         } else {
           const std::uint32_t hours = sleep_menu::sliderValueFromX(
               dragX, 0U, sleep_menu::kHoursMax, 1U);
-          if (hours != sleep_menu::hoursPart(current)) {
-            ui.setSleepTimeoutSec(sleep_menu::timeoutFromParts(
-                sleep_menu::minutesPart(current), hours));
-            lastDragDrawMs = millis();
-          }
+          ui.dragSleepSlider(2, hours);
+          lastDragDrawMs = millis();
         }
       }
     }

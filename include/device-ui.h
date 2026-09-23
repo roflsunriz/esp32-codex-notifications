@@ -27,9 +27,11 @@ class DeviceUi {
   bool readDragPoint(std::int16_t& x, std::int16_t& y);
   std::uint32_t sleepTimeoutSec() const { return sleepTimeoutSec_; }
   void setSleepTimeoutSec(std::uint32_t timeoutSec);
+  void dragSleepSlider(int kind, std::uint32_t newSliderValue);
   std::int16_t navigateScroll() const { return navigateScroll_; }
   void setNavigateScroll(std::int16_t scroll);
   void pageNavigateScroll(int dir);
+  void refresh();
   void showPressed(const InputAction& action, bool pressed);
   void tick(std::uint32_t now);
 
@@ -70,7 +72,10 @@ class DeviceUi {
                              std::int8_t dx);
   void drawEncoderPressButton();
   void drawButton(std::int16_t x, std::int16_t y, std::int16_t width,
-                  std::int16_t height, bool pressed, std::uint16_t border);
+                    std::int16_t height, bool pressed, std::uint16_t border);
+  void moveSliderThumb(std::int16_t centerY, std::uint32_t oldValue,
+                       std::uint32_t newValue, std::uint32_t minV,
+                       std::uint32_t maxV);
   void drawStatusIcon(StatusKind status, std::int16_t x, std::int16_t y,
                       std::uint16_t color);
   void drawCommandIcon(std::uint8_t index, std::int16_t x, std::int16_t y,

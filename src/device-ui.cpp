@@ -172,6 +172,62 @@ void DeviceUi::setSleepTimeoutSec(std::uint32_t timeoutSec) {
   if (displayAwake_ && page_ == Page::Navigate) drawAll();
 }
 
+void DeviceUi::moveSliderThumb(std::int16_t centerY, std::uint32_t oldValue,
+                               std::uint32_t newValue, std::uint32_t minV,
+                               std::uint32_t maxV) {
+  using namespace sleep_menu;
+  const std::int16_t scroll = clampScroll(navigateScroll_);
+  const std::int16_t y =
+      static_cast<std::int16_t>(centerY - scroll);
+  if (y < kVisibleTop + 8 || y > kVisibleBottom - 8) return;
+  const std::int16_t oldX = sliderXFromValue(oldValue, minV, maxV);
+  const std::int16_t newX = sliderXFromValue(newValue, minV, maxV);
+  display_.startWrite();
+  // Erase the old thumb and repaint the track segment beneath it.
+  display_.fillRect(oldX - 6, y - 8, 12, 17, kBackground);
+  display_.fillRect(oldX - 6, y - 2, 12, 5, kBackground);
+  display_.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
+  const std::int16_t fillEnd = sliderXFromValue(newValue, minV, maxV);
+  if (fillEnd > kTrackX0)
+    display_.fillRect(kTrackX0, y - 2, fillEnd - kTrackX0, 5, kAccent);
+  display_.fillRect(newX - 6, y - 6, 12, 13, kText);
+  display_.fillRect(newX - 4, y - 4, 8, 9, kPanel);
+  display_.endWrite();
+}
+
+void DeviceUi::dragSleepSlider(int kind, std::uint32_t newSliderValue) {
+  using namespace sleep_menu;
+  const std::uint32_t current = sleepTimeoutSec_;
+  std::uint32_t oldValue = 0U;
+  std::uint32_t total = current;
+  std::int16_t centerY = 0;
+  std::uint32_t minV = 0U;
+  std::uint32_t maxV = 1U;
+  if (kind == 1) {
+    oldValue = minutesPart(current);
+    if (newSliderValue == oldValue) return;
+    total = timeoutFromParts(newSliderValue, hoursPart(current));
+    centerY = kMinutesY;
+    maxV = kMinutesMax;
+  } else if (kind == 2) {
+    oldValue = hoursPart(current);
+    if (newSliderValue == oldValue) return;
+    total = timeoutFromParts(minutesPart(current), newSliderValue);
+    centerY = kHoursY;
+    maxV = kHoursMax;
+  } else {
+    return;
+  }
+  if (!isValidTimeout(total)) return;
+  sleepTimeoutSec_ = total;
+  if (!saveSleep()) {
+    sleepTimeoutSec_ = current;
+    return;
+  }
+  if (displayAwake_ && page_ == Page::Navigate)
+    moveSliderThumb(centerY, oldValue, newSliderValue, minV, maxV);
+}
+
 void DeviceUi::setNavigateScroll(std::int16_t scroll) {
   const std::int16_t clamped = sleep_menu::clampScroll(scroll);
   if (navigateScroll_ == clamped) return;
@@ -183,6 +239,10 @@ void DeviceUi::pageNavigateScroll(int dir) {
   if (dir == 0) return;
   setNavigateScroll(
       static_cast<std::int16_t>(navigateScroll_ + dir * 40));
+}
+
+void DeviceUi::refresh() {
+  if (displayAwake_) drawAll();
 }
 
 void DeviceUi::applyOrientation() {

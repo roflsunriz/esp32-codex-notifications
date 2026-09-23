@@ -147,6 +147,23 @@ void testTouchSamplesMustBeStableBeforePress() {
   require(filter.push({199, 201}, output), "再開始後の安定3点");
 }
 
+void testDragTrackingFollowsFingerWithoutRedelivery() {
+  TouchSampleFilter filter;
+  ScreenPoint output;
+  require(!filter.push({100, 200}, output), "1点では未確定");
+  require(!filter.push({104, 198}, output), "2点では未確定");
+  require(filter.push({102, 201}, output), "近い3点で確定");
+  for (int i = 0; i < 300; ++i) {
+    require(!filter.push({150, 150}, output), "追従中は再通知しない");
+  }
+  // Integer EMA stalls within a few pixels of the finger.
+  require(std::abs(output.x - 150) <= 5, "追従座標が指へ寄る");
+  require(std::abs(output.y - 150) <= 5, "追従座標が指へ寄る");
+  require(filter.current(output), "追従中も現在値を取得");
+  filter.reset();
+  require(!filter.current(output), "解放後は現在値なし");
+}
+
 void testCommandGridAndProtocolIds() {
   const char* expected[] = {"ACT06", "ACT07", "ACT08", "ACT09", "ACT10", "ACT12"};
   for (int index = 0; index < 6; ++index) {
@@ -291,6 +308,7 @@ int main() {
   testDisplaySleepsWhileDisconnected();
   testDisconnectTimerHandlesMillisWrap();
   testTouchSamplesMustBeStableBeforePress();
+  testDragTrackingFollowsFingerWithoutRedelivery();
   testCommandGridAndProtocolIds();
   testNavigationAngles();
   testGapsAndBoundsAreInactive();
@@ -299,6 +317,6 @@ int main() {
   testIdleTimeoutSleepsAfterInactivity();
   testSleepSliderMapping();
   testNavigateSleepControls();
-  std::cout << "ui-model: 16 tests passed\n";
+  std::cout << "ui-model: 17 tests passed\n";
   return 0;
 }

@@ -90,6 +90,8 @@ class TouchSampleFilter {
   std::uint8_t count_ = 0;
   bool delivered_ = false;
   ScreenPoint last_{};
+  std::int32_t emaX_ = 0;
+  std::int32_t emaY_ = 0;
 };
 
 enum class StatusKind : std::uint8_t {
