@@ -307,17 +307,31 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
 }
 
 bool DeviceUi::readDragPoint(std::int16_t& x, std::int16_t& y) {
-  if (!touch_.tirqTouched()) return false;
+  // Tap path uses the smoothed filter output; drags must follow the same
+  // source so lightening pressure does not freeze or flap the contact.
+  if (!touch_.tirqTouched()) {
+    touchFilter_.reset();
+    return false;
+  }
   const SensitiveTouchPoint point = touch_.getPoint();
-  if (point.z < calibration_.pressure) return false;
-  const ScreenPoint oriented = orientPoint(
-      {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
-               board::kScreenWidth - 1),
-       mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
-               board::kScreenHeight - 1)},
-      inverted_);
-  x = oriented.x;
-  y = oriented.y;
+  if (point.z >= calibration_.pressure) {
+    const ScreenPoint oriented = orientPoint(
+        {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
+                 board::kScreenWidth - 1),
+         mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
+                 board::kScreenHeight - 1)},
+        inverted_);
+    ScreenPoint stabilized;
+    if (touchFilter_.push(oriented, stabilized)) {
+      x = stabilized.x;
+      y = stabilized.y;
+      return true;
+    }
+  }
+  ScreenPoint stable;
+  if (!touchFilter_.current(stable)) return false;
+  x = stable.x;
+  y = stable.y;
   return true;
 }
 
@@ -398,16 +412,12 @@ void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {
 
 void DeviceUi::setPage(Page page) {
   if (page_ == page) return;
-  const Page previousPage = page_;
   page_ = page;
   pressed_ = false;
   if (!displayAwake_) return;
 
-  display_.startWrite();
-  drawContent();
-  drawTab(static_cast<std::uint8_t>(previousPage));
-  drawTab(static_cast<std::uint8_t>(page_));
-  display_.endWrite();
+  // Full repaint so scrolled content leaves no remnants behind.
+  drawAll();
 }
 
 void DeviceUi::toggleRotation() {

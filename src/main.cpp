@@ -16,6 +16,7 @@ bool lastConnected = false;
 std::uint32_t lastIdleTimeoutSec = 0xFFFFFFFFU;
 enum class DragKind : std::uint8_t { None, SleepMinutes, SleepHours, Scroll };
 DragKind dragKind = DragKind::None;
+std::uint32_t lastDragDrawMs = 0;
 std::int16_t dragStartY = 0;
 std::int16_t dragStartScroll = 0;
 bool bootRawHigh = true;
@@ -183,8 +184,10 @@ void loop() {
   }
   if (transition == TouchTransition::Release) release();
   // Contact-continuation drags on the Navigate tab. Taps are unaffected.
+  // Redraws are throttled so a drag does not strobe the screen.
   if (touched && prevPressed && ui.displayAwake() &&
-      ui.page() == Page::Navigate && dragKind != DragKind::None) {
+      ui.page() == Page::Navigate && dragKind != DragKind::None &&
+      static_cast<std::uint32_t>(millis() - lastDragDrawMs) >= 80U) {
     std::int16_t dragX = 0;
     std::int16_t dragY = 0;
     if (ui.readDragPoint(dragX, dragY)) {
@@ -192,7 +195,12 @@ void loop() {
         const std::int32_t delta =
             static_cast<std::int32_t>(dragStartY) - dragY;
         if (delta < -6 || delta > 6) {
-          ui.setNavigateScroll(static_cast<std::int16_t>(dragStartScroll + delta));
+          const std::int16_t target = sleep_menu::clampScroll(
+              static_cast<int>(dragStartScroll) + delta);
+          if (target != ui.navigateScroll()) {
+            ui.setNavigateScroll(target);
+            lastDragDrawMs = millis();
+          }
         }
       } else if (dragX >= 16 && dragX <= 283) {
         const std::uint32_t current = ui.sleepTimeoutSec();
@@ -202,6 +210,7 @@ void loop() {
           if (minutes != sleep_menu::minutesPart(current)) {
             ui.setSleepTimeoutSec(sleep_menu::timeoutFromParts(
                 minutes, sleep_menu::hoursPart(current)));
+            lastDragDrawMs = millis();
           }
         } else {
           const std::uint32_t hours = sleep_menu::sliderValueFromX(
@@ -209,6 +218,7 @@ void loop() {
           if (hours != sleep_menu::hoursPart(current)) {
             ui.setSleepTimeoutSec(sleep_menu::timeoutFromParts(
                 sleep_menu::minutesPart(current), hours));
+            lastDragDrawMs = millis();
           }
         }
       }

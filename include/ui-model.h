@@ -75,6 +75,11 @@ class TouchSampleFilter {
  public:
   bool push(ScreenPoint sample, ScreenPoint& stabilized);
   void reset();
+  bool current(ScreenPoint& stabilized) const {
+    if (!delivered_) return false;
+    stabilized = last_;
+    return true;
+  }
 
  private:
   static constexpr std::uint8_t kRequiredSamples = 3;
@@ -84,6 +89,7 @@ class TouchSampleFilter {
   std::int32_t sumY_ = 0;
   std::uint8_t count_ = 0;
   bool delivered_ = false;
+  ScreenPoint last_{};
 };
 
 enum class StatusKind : std::uint8_t {

@@ -209,6 +209,7 @@ bool TouchSampleFilter::push(ScreenPoint sample, ScreenPoint& stabilized) {
 
   stabilized = {static_cast<std::int16_t>(sumX_ / count_),
                 static_cast<std::int16_t>(sumY_ / count_)};
+  last_ = stabilized;
   delivered_ = true;
   return true;
 }
