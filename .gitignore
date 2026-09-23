@@ -6,6 +6,7 @@ COMMON-AGENTS.md
 .npm-cache/
 .venv/
 .vscode/
+.local/
 build/
 dist/
 .pip-audit-cache/
