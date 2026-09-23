@@ -761,7 +761,7 @@ void DeviceUi::drawNavigate() {
   };
   char line[32];
   if (sleepTimeoutSec_ == 0U) {
-    snprintf(line, sizeof(line), "SLEEP ALWAYS ON");
+    snprintf(line, sizeof(line), "LOCAL SLEEP OFF");
   } else {
     snprintf(line, sizeof(line), "SLEEP %uH %uM", hours, minutes);
   }
@@ -772,7 +772,7 @@ void DeviceUi::drawNavigate() {
   snprintf(line, sizeof(line), "HRS 0-24: %u", hours);
   drawLabel(kHoursLabelY, line);
   drawTrack(kHoursY, hours, 0U, kHoursMax);
-  drawLabel(kNoteY, "0M 0H = ALWAYS ON");
+  drawLabel(kNoteY, "0M 0H = LOCAL OFF");
   // Scrollbar stays fixed on the right edge.
   const std::int16_t trackH = kScrollBarY1 - kScrollBarY0;
   const std::int16_t thumbH = static_cast<std::int16_t>(
