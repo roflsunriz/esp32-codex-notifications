@@ -45,6 +45,8 @@ class CodexMicroBle {
   void sendKey(const char* key, std::uint8_t action, std::int8_t agent = -1);
   void sendJoystick(float angle, float distance);
   void wakeDisplay();
+  void noteDisplayActivity();
+  void setDisplayIdleTimeout(std::uint32_t timeoutSec);
   CodexMicroState snapshot();
 
  private:

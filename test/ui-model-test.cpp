@@ -223,6 +223,63 @@ void testBacklightBrightnessFollowsActiveLighting() {
   require(backlightDuty(0.8F, false) == 0, "Auto-dim中は保存輝度に関係なく消灯");
 }
 
+void testIdleTimeoutSleepsAfterInactivity() {
+  DisplayPowerSync power;
+  power.reset(0);
+  power.setConnected(true, 0);
+  require(power.idleTimeoutSec() == 0U, "既定はアイドル消灯なし");
+  power.setIdleTimeoutSec(600U);
+  require(power.idleTimeoutSec() == 600U, "10分設定を保持");
+  require(!power.tick(599999U), "期限前は画面ON");
+  require(power.tick(600000U), "10分無操作で画面OFF");
+  require(!power.awake(), "アイドル後は画面OFF");
+  require(power.wake(610000), "タッチで復帰");
+  power.setIdleTimeoutSec(0U);
+  require(!power.tick(3600000U), "0は常時点灯");
+  power.setIdleTimeoutSec(0xFFFFFFFFU);
+  require(power.idleTimeoutSec() == 0U, "範囲外は無効");
+}
+
+void testSleepSliderMapping() {
+  using namespace sleep_menu;
+  require(timeoutFromParts(0U, 0U) == 0U, "0分0時間は無効化");
+  require(timeoutFromParts(59U, 24U) == kTimeoutMaxSec, "最大24時間59分");
+  require(minutesPart(7800U) == 10U, "分の取り出し");
+  require(hoursPart(7800U) == 2U, "時間の取り出し");
+  require(isValidTimeout(0U) && isValidTimeout(89940U), "範囲内を受理");
+  require(!isValidTimeout(89941U), "範囲外を拒否");
+  require(sliderValueFromX(kTrackX0, 0U, 59U, 1U) == 0U, "軌道左端");
+  require(sliderValueFromX(kTrackX1, 0U, 59U, 1U) == 59U, "軌道右端");
+  require(sliderXFromValue(0U, 0U, 59U) == kTrackX0, "つまみ左端");
+  require(sliderXFromValue(59U, 0U, 59U) == kTrackX1, "つまみ右端");
+  require(clampScroll(-1) == 0, "スクロール下限");
+  require(clampScroll(9999) == kScrollMax, "スクロール上限");
+  require(scrollFromTrackY(kScrollBarY0) == 0, "バー上端");
+  require(scrollFromTrackY(kScrollBarY1) == kScrollMax, "バー下端");
+}
+
+void testNavigateSleepControls() {
+  using namespace sleep_menu;
+  const InputAction minutes =
+      actionAt(Page::Navigate, sliderXFromValue(30U, 0U, 59U), kMinutesY - 60, 60);
+  require(minutes.kind == InputKind::SleepMinutes, "分スライダー");
+  require(minutes.index == 30, "分の値");
+  const InputAction hours =
+      actionAt(Page::Navigate, sliderXFromValue(2U, 0U, 24U), kHoursY - 100, 100);
+  require(hours.kind == InputKind::SleepHours, "時間スライダー");
+  require(hours.index == 2, "時間の値");
+  const InputAction scrolled = actionAt(Page::Navigate,
+                                        sliderXFromValue(30U, 0U, 59U),
+                                        200, 55);
+  require(scrolled.kind == InputKind::SleepMinutes, "スクロール追従");
+  const InputAction bar =
+      actionAt(Page::Navigate, kScrollBarX0 + 6, 190);
+  require(bar.kind == InputKind::NavigateScroll, "スクロールバー");
+  const InputAction joy =
+      actionAt(Page::Navigate, 53, 22, 40);
+  require(std::abs(joy.angle - 0.75F) < 0.001F, "スクロール後の joystick");
+}
+
 }  // namespace
 
 int main() {
@@ -239,6 +296,9 @@ int main() {
   testGapsAndBoundsAreInactive();
   testStatusColors();
   testBacklightBrightnessFollowsActiveLighting();
-  std::cout << "ui-model: 13 tests passed\n";
+  testIdleTimeoutSleepsAfterInactivity();
+  testSleepSliderMapping();
+  testNavigateSleepControls();
+  std::cout << "ui-model: 16 tests passed\n";
   return 0;
 }

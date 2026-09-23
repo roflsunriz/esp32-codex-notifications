@@ -231,6 +231,20 @@ void CodexMicroBle::wakeDisplay() {
   sendKey("__WAKE__", 2);
 }
 
+void CodexMicroBle::noteDisplayActivity() {
+  if (stateMutex_ == nullptr) return;
+  xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  displayPower_.noteActivity(millis());
+  xSemaphoreGive(stateMutex_);
+}
+
+void CodexMicroBle::setDisplayIdleTimeout(std::uint32_t timeoutSec) {
+  if (stateMutex_ == nullptr) return;
+  xSemaphoreTake(stateMutex_, portMAX_DELAY);
+  displayPower_.setIdleTimeoutSec(timeoutSec);
+  xSemaphoreGive(stateMutex_);
+}
+
 CodexMicroState CodexMicroBle::snapshot() {
   CodexMicroState copy;
   if (stateMutex_ == nullptr) return copy;

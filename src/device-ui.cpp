@@ -69,10 +69,11 @@ void DeviceUi::begin() {
   display_.setTextWrap(false);
 
   touchBus_.begin(board::kTouchClockPin, board::kTouchMisoPin, board::kTouchMosiPin,
-                  board::kTouchChipSelectPin);
+                   board::kTouchChipSelectPin);
   touch_.begin(touchBus_);
   touch_.setRotation(1);
   loadCalibration();
+  loadSleep();
   for (auto& status : statuses_) status = StatusKind::Unassigned;
   drawAll();
 }
@@ -141,6 +142,41 @@ void DeviceUi::saveOrientation() {
   preferences.putUInt("version", kOrientationVersion);
   preferences.putBool("inverted", inverted_);
   preferences.end();
+}
+
+void DeviceUi::loadSleep() {
+  sleepTimeoutSec_ = 0U;
+  navigateScroll_ = 0;
+  Preferences preferences;
+  if (!preferences.begin("codex-ui", true)) return;
+  const std::uint32_t saved =
+      static_cast<std::uint32_t>(preferences.getUInt("sleep_sec", 0U));
+  if (sleep_menu::isValidTimeout(saved)) sleepTimeoutSec_ = saved;
+  preferences.end();
+}
+
+bool DeviceUi::saveSleep() {
+  Preferences preferences;
+  if (!preferences.begin("codex-ui", false)) return false;
+  preferences.putUInt("sleep_sec", sleepTimeoutSec_);
+  preferences.end();
+  return true;
+}
+
+void DeviceUi::setSleepTimeoutSec(std::uint32_t timeoutSec) {
+  if (!sleep_menu::isValidTimeout(timeoutSec)) return;
+  if (sleepTimeoutSec_ == timeoutSec) return;
+  const std::uint32_t previous = sleepTimeoutSec_;
+  sleepTimeoutSec_ = timeoutSec;
+  if (!saveSleep()) sleepTimeoutSec_ = previous;
+  if (displayAwake_ && page_ == Page::Navigate) drawAll();
+}
+
+void DeviceUi::setNavigateScroll(std::int16_t scroll) {
+  const std::int16_t clamped = sleep_menu::clampScroll(scroll);
+  if (navigateScroll_ == clamped) return;
+  navigateScroll_ = clamped;
+  if (displayAwake_ && page_ == Page::Navigate) drawAll();
 }
 
 void DeviceUi::applyOrientation() {
@@ -261,6 +297,21 @@ bool DeviceUi::readTouch(std::int16_t& x, std::int16_t& y) {
   if (!touchFilter_.push(oriented, stabilized)) return false;
   x = stabilized.x;
   y = stabilized.y;
+  return true;
+}
+
+bool DeviceUi::readDragPoint(std::int16_t& x, std::int16_t& y) {
+  if (!touch_.tirqTouched()) return false;
+  const SensitiveTouchPoint point = touch_.getPoint();
+  if (point.z < calibration_.pressure) return false;
+  const ScreenPoint oriented = orientPoint(
+      {mapAxis(point.x, calibration_.left, calibration_.right, 24, 295,
+               board::kScreenWidth - 1),
+       mapAxis(point.y, calibration_.top, calibration_.bottom, 24, 215,
+               board::kScreenHeight - 1)},
+      inverted_);
+  x = oriented.x;
+  y = oriented.y;
   return true;
 }
 
@@ -606,17 +657,77 @@ void DeviceUi::drawArrow(std::int16_t x, std::int16_t y, std::int8_t dx,
 }
 
 void DeviceUi::drawNavigate() {
-  drawJoystickButton(18, 38, 0.75F, 0, -1);
-  drawJoystickButton(18, 150, 0.25F, 0, 1);
-  drawJoystickButton(2, 94, 0.50F, -1, 0);
-  drawJoystickButton(76, 94, 0.00F, 1, 0);
-  drawEncoderStepButton(0, 166, -1);
-  drawEncoderStepButton(1, 244, 1);
-  drawEncoderPressButton();
+  using namespace sleep_menu;
+  const std::int16_t scroll = clampScroll(navigateScroll_);
+  auto visible = [scroll](std::int16_t y, std::int16_t h) {
+    return y - scroll + h > kVisibleTop && y - scroll < kVisibleBottom;
+  };
+  auto shifted = [scroll](std::int16_t y) {
+    return static_cast<std::int16_t>(y - scroll);
+  };
+  if (visible(38, 48)) drawJoystickButton(18, 38, 0.75F, 0, -1);
+  if (visible(150, 48)) drawJoystickButton(18, 150, 0.25F, 0, 1);
+  if (visible(94, 48)) drawJoystickButton(2, 94, 0.50F, -1, 0);
+  if (visible(94, 48)) drawJoystickButton(76, 94, 0.00F, 1, 0);
+  if (visible(42, 64)) drawEncoderStepButton(0, 166, -1);
+  if (visible(42, 64)) drawEncoderStepButton(1, 244, 1);
+  if (visible(118, 78)) drawEncoderPressButton();
+  const std::uint32_t minutes = minutesPart(sleepTimeoutSec_);
+  const std::uint32_t hours = hoursPart(sleepTimeoutSec_);
+  display_.setTextDatum(TL_DATUM);
+  auto drawLabel = [&](std::int16_t y, const char* text) {
+    if (y - scroll < kVisibleTop || y - scroll > kVisibleBottom - 16) return;
+    display_.setTextColor(kText, kBackground);
+    display_.drawString(text, 8, y - scroll, 2);
+  };
+  auto drawTrack = [&](std::int16_t centerY, std::uint32_t value,
+                       std::uint32_t minV, std::uint32_t maxV) {
+    const std::int16_t y = shifted(centerY);
+    if (y < kVisibleTop + 8 || y > kVisibleBottom - 8) return;
+    display_.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
+    const std::int16_t thumbX = sliderXFromValue(value, minV, maxV);
+    if (thumbX > kTrackX0)
+      display_.fillRect(kTrackX0, y - 2, thumbX - kTrackX0, 5, kAccent);
+    display_.fillRect(thumbX - 6, y - 6, 12, 13, kText);
+    display_.fillRect(thumbX - 4, y - 4, 8, 9, kPanel);
+  };
+  char line[32];
+  if (sleepTimeoutSec_ == 0U) {
+    snprintf(line, sizeof(line), "SLEEP ALWAYS ON");
+  } else {
+    snprintf(line, sizeof(line), "SLEEP %uH %uM", hours, minutes);
+  }
+  drawLabel(kCombinedY, line);
+  snprintf(line, sizeof(line), "MIN 0-59: %u", minutes);
+  drawLabel(kMinutesLabelY, line);
+  drawTrack(kMinutesY, minutes, 0U, kMinutesMax);
+  snprintf(line, sizeof(line), "HRS 0-24: %u", hours);
+  drawLabel(kHoursLabelY, line);
+  drawTrack(kHoursY, hours, 0U, kHoursMax);
+  drawLabel(kNoteY, "0M 0H = ALWAYS ON");
+  // Scrollbar stays fixed on the right edge.
+  const std::int16_t trackH = kScrollBarY1 - kScrollBarY0;
+  const std::int16_t thumbH = static_cast<std::int16_t>(
+      static_cast<std::int32_t>(kVisibleBottom - kVisibleTop) * trackH /
+      kContentH);
+  const std::int16_t travel = trackH - thumbH;
+  const std::int16_t thumbY =
+      travel <= 0 || kScrollMax <= 0
+          ? kScrollBarY0
+          : static_cast<std::int16_t>(kScrollBarY0 +
+                                      scroll * travel / kScrollMax);
+  display_.drawRect(kScrollBarX0, kScrollBarY0, 12, trackH, kPanel);
+  display_.fillRect(kScrollBarX0 + 2, thumbY, 8, thumbH, kText);
 }
 
 void DeviceUi::drawPressedAction(const InputAction& action) {
   if (action.page != page_) return;
+  if (action.kind == InputKind::PageSwitch ||
+      action.kind == InputKind::SleepMinutes ||
+      action.kind == InputKind::SleepHours ||
+      action.kind == InputKind::NavigateScroll) {
+    return;
+  }
   if (action.kind == InputKind::AgentKey && action.index >= 0 && action.index < 6) {
     drawAgent(static_cast<std::uint8_t>(action.index));
   } else if (action.kind == InputKind::CommandKey && action.index >= 0 &&
@@ -637,22 +748,34 @@ void DeviceUi::drawPressedAction(const InputAction& action) {
 }
 
 void DeviceUi::drawJoystickButton(std::int16_t x, std::int16_t y, float angle,
-                                  std::int8_t dx, std::int8_t dy) {
-  drawButton(x, y, 70, 48,
+                                   std::int8_t dx, std::int8_t dy) {
+  const std::int16_t scrolled =
+      static_cast<std::int16_t>(y - sleep_menu::clampScroll(navigateScroll_));
+  if (scrolled + 48 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
+    return;
+  drawButton(x, scrolled, 70, 48,
              actionIsPressed(InputKind::Joystick) && pressedAction_.angle == angle,
              kAccent);
-  drawArrow(x + 35, y + 24, dx, dy, kText);
+  drawArrow(x + 35, scrolled + 24, dx, dy, kText);
 }
 
 void DeviceUi::drawEncoderStepButton(std::uint8_t index, std::int16_t x,
                                      std::int8_t dx) {
-  drawButton(x, 42, 68, 64, actionIsPressed(InputKind::EncoderStep, index), 0xFFE0);
-  drawArrow(x + 34, 74, dx, 0, kText);
+  const std::int16_t scrolled =
+      static_cast<std::int16_t>(42 - sleep_menu::clampScroll(navigateScroll_));
+  if (scrolled + 64 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
+    return;
+  drawButton(x, scrolled, 68, 64, actionIsPressed(InputKind::EncoderStep, index), 0xFFE0);
+  drawArrow(x + 34, scrolled + 32, dx, 0, kText);
 }
 
 void DeviceUi::drawEncoderPressButton() {
-  drawButton(166, 118, 146, 78, actionIsPressed(InputKind::EncoderPress), 0xFFE0);
-  display_.drawCircle(239, 157, 25, kText);
-  display_.drawCircle(239, 157, 16, kMuted);
-  display_.fillCircle(239, 157, 5, kText);
+  const std::int16_t scrolled =
+      static_cast<std::int16_t>(118 - sleep_menu::clampScroll(navigateScroll_));
+  if (scrolled + 78 <= sleep_menu::kVisibleTop || scrolled >= sleep_menu::kVisibleBottom)
+    return;
+  drawButton(166, scrolled, 146, 78, actionIsPressed(InputKind::EncoderPress), 0xFFE0);
+  display_.drawCircle(239, scrolled + 39, 25, kText);
+  display_.drawCircle(239, scrolled + 39, 16, kMuted);
+  display_.fillCircle(239, scrolled + 39, 5, kText);
 }

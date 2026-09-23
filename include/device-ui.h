@@ -24,6 +24,11 @@ class DeviceUi {
   void setPage(Page page);
   void toggleRotation();
   Page page() const { return page_; }
+  bool readDragPoint(std::int16_t& x, std::int16_t& y);
+  std::uint32_t sleepTimeoutSec() const { return sleepTimeoutSec_; }
+  void setSleepTimeoutSec(std::uint32_t timeoutSec);
+  std::int16_t navigateScroll() const { return navigateScroll_; }
+  void setNavigateScroll(std::int16_t scroll);
   void showPressed(const InputAction& action, bool pressed);
   void tick(std::uint32_t now);
 
@@ -38,6 +43,8 @@ class DeviceUi {
 
   void loadCalibration();
   bool saveCalibration();
+  void loadSleep();
+  bool saveSleep();
   void loadOrientation();
   void saveOrientation();
   void applyOrientation();
@@ -80,6 +87,8 @@ class DeviceUi {
   CodexMicroState state_;
   std::array<StatusKind, 6> statuses_{};
   Page page_ = Page::Agents;
+  std::uint32_t sleepTimeoutSec_ = 0U;
+  std::int16_t navigateScroll_ = 0;
   InputAction pressedAction_;
   TouchSampleFilter touchFilter_;
   bool pressed_ = false;

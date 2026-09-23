@@ -12,6 +12,9 @@ enum class InputKind : std::uint8_t {
   EncoderStep,
   EncoderPress,
   Joystick,
+  SleepMinutes,
+  SleepHours,
+  NavigateScroll,
 };
 
 enum class BootGesture : std::uint8_t { None, RotateScreen, CalibrateTouch };
@@ -27,17 +30,26 @@ class DisplayPowerSync {
   bool tick(std::uint32_t nowMs);
   bool wake(std::uint32_t nowMs);
   bool awake() const { return awake_; }
+  // User idle auto-off in seconds. 0 disables it (lighting-driven only).
+  void setIdleTimeoutSec(std::uint32_t seconds) {
+    idleTimeoutSec_ = seconds <= kIdleTimeoutMaxSec ? seconds : 0U;
+  }
+  std::uint32_t idleTimeoutSec() const { return idleTimeoutSec_; }
+  void noteActivity(std::uint32_t nowMs) { lastActivityMs_ = nowMs; }
 
  private:
   static constexpr std::uint8_t kAllThreadsMask = 0x3F;
   static constexpr std::uint32_t kWakeGraceMs = 5000;
   static constexpr std::uint32_t kDisconnectSleepMs = 30000;
+  static constexpr std::uint32_t kIdleTimeoutMaxSec = 24U * 3600U + 59U * 60U;
 
   bool awake_ = true;
   bool connected_ = false;
   bool lightingConfigOff_ = false;
   std::uint32_t ignoreAllOffUntil_ = kWakeGraceMs;
   std::uint32_t disconnectSleepAt_ = kDisconnectSleepMs;
+  std::uint32_t idleTimeoutSec_ = 0U;
+  std::uint32_t lastActivityMs_ = 0U;
 };
 
 struct InputAction {
@@ -83,7 +95,10 @@ enum class StatusKind : std::uint8_t {
   Error,
 };
 
-InputAction actionAt(Page page, std::int16_t x, std::int16_t y);
+InputAction actionAt(Page page, std::int16_t x, std::int16_t y,
+                     std::int16_t scroll = 0);
+InputAction navigateActionAt(std::int16_t x, std::int16_t y,
+                             std::int16_t scroll);
 ScreenPoint orientPoint(ScreenPoint point, bool inverted);
 BootGesture bootGestureForDuration(std::uint32_t durationMs);
 std::int16_t touchThresholdForPressure(std::int16_t weakestPressure);
@@ -92,5 +107,96 @@ const char* protocolKeyFor(const InputAction& action);
 StatusKind statusKindForColor(std::uint32_t rgb, float brightness);
 bool isNotificationStatus(StatusKind status);
 float synchronizedLightingBrightness(float previous, float observed,
-                                     bool observable);
+                                       bool observable);
 std::uint8_t backlightDuty(float brightness, bool displayAwake);
+
+// Navigate-tab sleep menu (auto-off without polling). Minutes/hours
+// sliders set the idle timeout in seconds; 0 minutes + 0 hours disables it.
+// Touch positions are calibrated to screen 24..295, so controls stay inside.
+namespace sleep_menu {
+constexpr std::uint32_t kMinutesMax = 59U;
+constexpr std::uint32_t kHoursMax = 24U;
+constexpr std::uint32_t kTimeoutMaxSec = 24U * 3600U + 59U * 60U;
+constexpr std::int16_t kTrackX0 = 24;
+constexpr std::int16_t kTrackX1 = 275;
+constexpr std::int16_t kCombinedY = 212;
+constexpr std::int16_t kMinutesLabelY = 230;
+constexpr std::int16_t kMinutesY = 250;
+constexpr std::int16_t kHoursLabelY = 272;
+constexpr std::int16_t kHoursY = 292;
+constexpr std::int16_t kNoteY = 314;
+constexpr std::int16_t kHalfH = 14;
+constexpr std::int16_t kContentH = 330;
+constexpr std::int16_t kVisibleTop = 28;
+constexpr std::int16_t kVisibleBottom = 208;
+constexpr std::int16_t kScrollMax =
+    kContentH - (kVisibleBottom - kVisibleTop);
+constexpr std::int16_t kScrollBarX0 = 283;
+constexpr std::int16_t kScrollBarY0 = 32;
+constexpr std::int16_t kScrollBarY1 = 200;
+
+inline std::uint32_t minutesPart(std::uint32_t timeoutSec) {
+  return (timeoutSec % 3600U) / 60U;
+}
+
+inline std::uint32_t hoursPart(std::uint32_t timeoutSec) {
+  return timeoutSec / 3600U;
+}
+
+inline std::uint32_t timeoutFromParts(std::uint32_t minutes,
+                                      std::uint32_t hours) {
+  if (minutes > kMinutesMax) minutes = kMinutesMax;
+  if (hours > kHoursMax) hours = kHoursMax;
+  return hours * 3600U + minutes * 60U;
+}
+
+inline bool isValidTimeout(std::uint32_t timeoutSec) {
+  return timeoutSec <= kTimeoutMaxSec;
+}
+
+inline std::uint32_t sliderValueFromX(std::int16_t x, std::uint32_t minV,
+                                      std::uint32_t maxV, std::uint32_t step) {
+  if (maxV <= minV || step == 0U) return minV;
+  std::int32_t clamped = x;
+  if (clamped < kTrackX0) clamped = kTrackX0;
+  if (clamped > kTrackX1) clamped = kTrackX1;
+  const std::uint32_t trackW = static_cast<std::uint32_t>(kTrackX1 - kTrackX0);
+  const std::uint32_t offset = static_cast<std::uint32_t>(clamped - kTrackX0);
+  const std::uint32_t range = maxV - minV;
+  const std::uint32_t steps = range / step;
+  std::uint32_t index =
+      (offset * steps + trackW / 2U) / trackW;
+  if (index > steps) index = steps;
+  return minV + index * step;
+}
+
+inline std::int16_t sliderXFromValue(std::uint32_t value, std::uint32_t minV,
+                                     std::uint32_t maxV) {
+  if (maxV <= minV) return kTrackX0;
+  if (value < minV) value = minV;
+  if (value > maxV) value = maxV;
+  const std::uint32_t trackW = static_cast<std::uint32_t>(kTrackX1 - kTrackX0);
+  const std::uint32_t range = maxV - minV;
+  return static_cast<std::int16_t>(
+      kTrackX0 + ((value - minV) * trackW + range / 2U) / range);
+}
+
+inline std::int16_t clampScroll(int value) {
+  if (value < 0) return 0;
+  if (value > kScrollMax) return kScrollMax;
+  return static_cast<std::int16_t>(value);
+}
+
+inline std::int16_t scrollFromTrackY(std::int16_t y) {
+  const std::int16_t trackH = kScrollBarY1 - kScrollBarY0;
+  const std::int16_t thumbH = static_cast<std::int16_t>(
+      static_cast<std::int32_t>(kVisibleBottom - kVisibleTop) * trackH /
+      kContentH);
+  const std::int16_t travel = trackH - thumbH;
+  if (travel <= 0 || kScrollMax <= 0) return 0;
+  const std::int32_t offset = (static_cast<std::int32_t>(y) - thumbH / 2 -
+                               kScrollBarY0) *
+                              kScrollMax / travel;
+  return clampScroll(offset);
+}
+}  // namespace sleep_menu

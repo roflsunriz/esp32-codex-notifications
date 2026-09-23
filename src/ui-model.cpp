@@ -40,6 +40,7 @@ void DisplayPowerSync::reset(std::uint32_t nowMs) {
   awake_ = true;
   connected_ = false;
   lightingConfigOff_ = false;
+  lastActivityMs_ = nowMs;
   // 接続直後の通常状態が複数回全消灯で届いても画面を即座に消さない。
   ignoreAllOffUntil_ = nowMs + kWakeGraceMs;
   disconnectSleepAt_ = nowMs + kDisconnectSleepMs;
@@ -84,17 +85,27 @@ bool DisplayPowerSync::setConnected(bool connected, std::uint32_t nowMs) {
 }
 
 bool DisplayPowerSync::tick(std::uint32_t nowMs) {
-  if (connected_ || !awake_ ||
-      static_cast<std::int32_t>(nowMs - disconnectSleepAt_) < 0) {
+  if (!awake_) {
     return false;
   }
-  awake_ = false;
-  return true;
+  if (!connected_ &&
+      static_cast<std::int32_t>(nowMs - disconnectSleepAt_) >= 0) {
+    awake_ = false;
+    return true;
+  }
+  if (idleTimeoutSec_ > 0U &&
+      static_cast<std::uint32_t>(nowMs - lastActivityMs_) >=
+          idleTimeoutSec_ * 1000U) {
+    awake_ = false;
+    return true;
+  }
+  return false;
 }
 
 bool DisplayPowerSync::wake(std::uint32_t nowMs) {
   const bool changed = !awake_;
   awake_ = true;
+  lastActivityMs_ = nowMs;
   // Desktopは活動通知後に現在の照明状態を複数回再送する場合がある。全タスク
   // 未割り当てなら全組が消灯状態なので、短い復帰猶予中はAuto-dim扱いしない。
   ignoreAllOffUntil_ = nowMs + kWakeGraceMs;
@@ -102,7 +113,8 @@ bool DisplayPowerSync::wake(std::uint32_t nowMs) {
   return changed;
 }
 
-InputAction actionAt(Page page, std::int16_t x, std::int16_t y) {
+InputAction actionAt(Page page, std::int16_t x, std::int16_t y,
+                     std::int16_t scroll) {
   if (x < 0 || x >= 320 || y < 0 || y >= 240) {
     return {};
   }
@@ -119,13 +131,42 @@ InputAction actionAt(Page page, std::int16_t x, std::int16_t y) {
     return gridAction(page, x, y, InputKind::CommandKey);
   }
 
-  if (contains(x, y, 18, 38, 70, 48)) return {InputKind::Joystick, page, -1, 0.75F};
-  if (contains(x, y, 18, 150, 70, 48)) return {InputKind::Joystick, page, -1, 0.25F};
-  if (contains(x, y, 2, 94, 70, 48)) return {InputKind::Joystick, page, -1, 0.50F};
-  if (contains(x, y, 76, 94, 70, 48)) return {InputKind::Joystick, page, -1, 0.00F};
-  if (contains(x, y, 166, 42, 68, 64)) return {InputKind::EncoderStep, page, 0, 0.0F};
-  if (contains(x, y, 244, 42, 68, 64)) return {InputKind::EncoderStep, page, 1, 0.0F};
-  if (contains(x, y, 166, 118, 146, 78)) return {InputKind::EncoderPress, page, -1, 0.0F};
+  return navigateActionAt(x, y, scroll);
+}
+
+InputAction navigateActionAt(std::int16_t x, std::int16_t y,
+                               std::int16_t scroll) {
+  using namespace sleep_menu;
+  const Page page = Page::Navigate;
+  const std::int16_t contentY =
+      static_cast<std::int16_t>(y + clampScroll(scroll));
+  // Scrollbar wins over the encoder area it overlaps.
+  if (x >= kScrollBarX0 - 2 && y >= kScrollBarY0 && y < kScrollBarY1)
+    return {InputKind::NavigateScroll, page, 0, 0.0F};
+  if (contains(x, contentY, 18, 38, 70, 48))
+    return {InputKind::Joystick, page, -1, 0.75F};
+  if (contains(x, contentY, 18, 150, 70, 48))
+    return {InputKind::Joystick, page, -1, 0.25F};
+  if (contains(x, contentY, 2, 94, 70, 48))
+    return {InputKind::Joystick, page, -1, 0.50F};
+  if (contains(x, contentY, 76, 94, 70, 48))
+    return {InputKind::Joystick, page, -1, 0.00F};
+  if (contains(x, contentY, 166, 42, 68, 64))
+    return {InputKind::EncoderStep, page, 0, 0.0F};
+  if (contains(x, contentY, 244, 42, 68, 64))
+    return {InputKind::EncoderStep, page, 1, 0.0F};
+  if (contains(x, contentY, 166, 118, 146, 78))
+    return {InputKind::EncoderPress, page, -1, 0.0F};
+  if (x >= 16 && x <= 283) {
+    if (contentY >= kMinutesY - kHalfH && contentY < kMinutesY + kHalfH)
+      return {InputKind::SleepMinutes, page,
+              static_cast<std::int8_t>(sliderValueFromX(x, 0U, kMinutesMax, 1U)),
+              0.0F};
+    if (contentY >= kHoursY - kHalfH && contentY < kHoursY + kHalfH)
+      return {InputKind::SleepHours, page,
+              static_cast<std::int8_t>(sliderValueFromX(x, 0U, kHoursMax, 1U)),
+              0.0F};
+  }
   return {};
 }
 
