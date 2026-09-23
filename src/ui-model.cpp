@@ -192,7 +192,16 @@ ScreenPoint orientPoint(ScreenPoint point, bool inverted) {
 }
 
 bool TouchSampleFilter::push(ScreenPoint sample, ScreenPoint& stabilized) {
-  if (delivered_) return false;
+  if (delivered_) {
+    // Keep tracking the finger for drags; the tap itself stays one-shot.
+    sumX_ += sample.x;
+    sumY_ += sample.y;
+    ++count_;
+    stabilized = {static_cast<std::int16_t>(sumX_ / count_),
+                  static_cast<std::int16_t>(sumY_ / count_)};
+    last_ = stabilized;
+    return false;
+  }
   if (count_ > 0) {
     const auto averageX = static_cast<std::int16_t>(sumX_ / count_);
     const auto averageY = static_cast<std::int16_t>(sumY_ / count_);

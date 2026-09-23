@@ -412,12 +412,19 @@ void DeviceUi::setState(const CodexMicroState& state, std::uint32_t now) {
 
 void DeviceUi::setPage(Page page) {
   if (page_ == page) return;
+  const Page previousPage = page_;
   page_ = page;
   pressed_ = false;
   if (!displayAwake_) return;
 
-  // Full repaint so scrolled content leaves no remnants behind.
-  drawAll();
+  // Clear the whole content area (not just the visible band) so scrolled
+  // content from the previous page leaves no remnants behind.
+  display_.startWrite();
+  display_.fillRect(0, 28, 320, 180, kBackground);
+  drawContent();
+  drawTab(static_cast<std::uint8_t>(previousPage));
+  drawTab(static_cast<std::uint8_t>(page_));
+  display_.endWrite();
 }
 
 void DeviceUi::toggleRotation() {
