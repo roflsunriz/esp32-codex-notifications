@@ -12,3 +12,6 @@ dist/
 .pip-audit-cache/
 *.pyc
 *.obj
+
+# エージェントの一時作業メモ
+subagents/

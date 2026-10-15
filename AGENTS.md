@@ -17,16 +17,8 @@ Get-Content -Raw -LiteralPath .\COMMON-AGENTS.md
 - ChatGPT (Codex) Desktop App の通知類や操作を簡便にするため、esp32-2432s028r ili9341 esp-wroom-32 tft lcd 開発ボード に操作ボタンや通知などを表示する。
 - Github上の他公開リポジトリで既に Work Louder Codex Micro / Creators Micro 2 と ChatGPT (Codex) Desktop App の公式連携の非公開APIを解析した結果があるのでそれを事前に調べてその結果を元に esp32 に実装する。
 
-## Environment
-<必要に応じて適宜書き足すこと。>
+## プロジェクト固有の実現手段と知見
 
-## 本体側の自動消灯（2026-09-23、操作はCOM7実機確認）
-
-- DesktopのAuto-dim同期とは別に、本体側の無操作タイマー（`DisplayPowerSync` のアイドル期限、タッチ操作で延長）を備える。Navigate画面下部の0〜59分・0〜24時間スライダーで設定し、NVS `codex-ui` の `sleep_sec` へ保存する。0分0時間は無効（Desktop同期だけ）になる。ポーリング取得はないため取得間隔スライダーは付けない。
-- Navigate画面はスクロール対応で、内容ドラッグで移動し、スライダーはドラッグで追従する。スクロールバーはエンコーダ域と重なるため判定を優先する。タッチ面の校正範囲は画面24..295のため、操作子はその範囲へ収める。
-- 2026-09-23のコード追跡で、`TouchSampleFilter::push()` は安定点の確定時だけ `true` を返すため、それを毎ループの接触状態に使うとドラッグ条件が成立しないことを確認した。`DeviceUi::readTouch()` は `current()` の追従座標を毎回返し、`src/main.cpp` はその1回の読みをドラッグにも使う。接触終了はIRQで判定し、BLEキー解放にドラッグ専用の猶予を混ぜない（`test/ui-model-test.cpp`、`test/test_render_policy.py`）。実機での追従・描画確認は `verification.md` を参照。
-- COM7実機でドラッグ追従は改善したが、`drawContent()` が中央領域を先に消してから描くため、スクロールとスライダーでちらついた（2026-09-23）。Navigate更新を小さな16-bit Spriteへ帯状に描いてから画面へ転送し、再書き込み後は所有者がちらつきなしと確認した。画面描画を変える場合は、`refresh()` と `drawNavigate()` の座標原点、ヘッダー・Bluetooth欄の描画順を同時に確認する（`src/device-ui.cpp`、`verification.md`）。
-
-## タッチ調整（2026-09-14、実機未検証）
-
-- 既存のBOOT長押し2点調整に、XPT2046の押圧閾値の実測・保存を追加した。`codex-touch` のversion 1の位置調整は閾値120で引き継ぎ、新しい位置・閾値は検証値付き単一`calib` blobへ保存する。校正中のみ閾値12で読み、保存失敗時は旧値へ戻す（`src/device-ui.cpp`、`lib/sensitive-xpt2046`）。抵抗膜に接触せずPENIRQが出ないペンは閾値変更だけでは認識できない。
+- 作業開始前に [COMMON-AGENTS.md](COMMON-AGENTS.md) と [findings.md](findings.md) を先頭から末尾まで全文読む。
+- ファイル配置、使用ツール、実行コマンド、対応環境、文書構成、共通方針の例外と調査知見は `findings.md` に記録する。
+- ユーザーの指示、変更禁止、秘密情報の保護、検証・変更履歴を残す義務は共通指針に従い維持する。

@@ -127,13 +127,7 @@ USB専用にするには、次のいずれかのハードウェアまたはPC側
 
 ## 検証済み環境
 
-- ESP32-2432S028R / ESP32-D0WD-V3
-- Windows 11 x64
-- Codex Desktop `26.818.5229.0`
-- Codex Desktop同梱 `@worklouder/device-kit-oai 0.2.1`
-- BLEペアリング、Windows PnP列挙、`v.oai.rgbcfg`、`v.oai.thstatus`、`device.status` の往復
-
-macOSでは同じBLEプロトコルのM5Stack Core2公開実装が検証されていますが、この基板と本ファームウェアの実機検証はWindowsで行っています。
+この内容は [findings.md](findings.md#readme-1) にまとめています。
 
 ## タッチ位置と感度の調整
 
@@ -156,3 +150,7 @@ macOSでは同じBLEプロトコルのM5Stack Core2公開実装が検証され�
 ## ライセンス
 
 MIT Licenseです。互換トランスポートとボード設定の出典・商標上の注意は [NOTICE.md](NOTICE.md) に記載しています。
+
+## 開発時の参照先
+
+プロジェクト固有の構成・環境・調査知見は [findings.md](findings.md)、作業規範は [AGENTS.md](AGENTS.md)、検証記録は [verification.md](verification.md) を参照してください。
