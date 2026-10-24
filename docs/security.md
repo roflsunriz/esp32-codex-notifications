@@ -1,6 +1,6 @@
 # セキュリティ監査
 
-更新日: 2026-09-23
+更新日: 2026-10-24
 
 ## Releaseビルド環境
 
@@ -16,7 +16,7 @@ PlatformIO Home、ASGI server、HTTP endpointは起動せず、外部からHTTP 
 
 ## pip-auditの限定除外
 
-PlatformIO 6.1.19はWeb UI用にStarlette `<0.53` を要求します。Starlette 0.52.1には次の既知脆弱性があります。
+PlatformIO 6.2.0はWeb UI用にStarlette `<0.53` を要求します。Starlette 0.52.1には次の既知脆弱性があります。
 
 | ID | 対象機能 | workflowからの到達性 |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ PlatformIO 6.1.19はWeb UI用にStarlette `<0.53` を要求します。Starlette
 | `PYSEC-2026-2280` | `HTTPEndpoint`のmethod dispatch | endpointを登録しないため到達不能 |
 | `PYSEC-2026-2281` | Windows `StaticFiles`のUNC path処理 | Linux runnerでStaticFilesを使わないため到達不能 |
 
-workflowの `pip-audit` は上記IDだけを明示的に除外し、それ以外の脆弱性では失敗します。pipは `26.2` へ更新し、`PYSEC-2026-3721`を解消します。
+workflowの `pip-audit` は上記IDだけを明示的に除外し、それ以外の脆弱性では失敗します。pipは `26.2.2` へ更新し、`PYSEC-2026-3721`を解消します。
 
 次のいずれかを変更する場合、この除外を撤回して再評価します。
 
