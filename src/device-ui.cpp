@@ -173,49 +173,16 @@ void DeviceUi::setSleepTimeoutSec(std::uint32_t timeoutSec) {
   if (displayAwake_ && page_ == Page::Navigate) refresh();
 }
 
-void DeviceUi::moveSliderThumb(std::int16_t centerY, std::uint32_t oldValue,
-                               std::uint32_t newValue, std::uint32_t minV,
-                               std::uint32_t maxV) {
-  using namespace sleep_menu;
-  const std::int16_t scroll = clampScroll(navigateScroll_);
-  const std::int16_t y =
-      static_cast<std::int16_t>(centerY - scroll);
-  if (y < kVisibleTop + 8 || y > kVisibleBottom - 8) return;
-  const std::int16_t oldX = sliderXFromValue(oldValue, minV, maxV);
-  const std::int16_t newX = sliderXFromValue(newValue, minV, maxV);
-  display_.startWrite();
-  // Erase the old thumb and repaint the track segment beneath it.
-  display_.fillRect(oldX - 6, y - 8, 12, 17, kBackground);
-  display_.fillRect(oldX - 6, y - 2, 12, 5, kBackground);
-  display_.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
-  const std::int16_t fillEnd = sliderXFromValue(newValue, minV, maxV);
-  if (fillEnd > kTrackX0)
-    display_.fillRect(kTrackX0, y - 2, fillEnd - kTrackX0, 5, kAccent);
-  display_.fillRect(newX - 6, y - 6, 12, 13, kText);
-  display_.fillRect(newX - 4, y - 4, 8, 9, kPanel);
-  display_.endWrite();
-}
-
 void DeviceUi::dragSleepSlider(int kind, std::uint32_t newSliderValue) {
   using namespace sleep_menu;
   const std::uint32_t current = sleepTimeoutSec_;
-  std::uint32_t oldValue = 0U;
   std::uint32_t total = current;
-  std::int16_t centerY = 0;
-  std::uint32_t minV = 0U;
-  std::uint32_t maxV = 1U;
   if (kind == 1) {
-    oldValue = minutesPart(current);
-    if (newSliderValue == oldValue) return;
+    if (newSliderValue == minutesPart(current)) return;
     total = timeoutFromParts(newSliderValue, hoursPart(current));
-    centerY = kMinutesY;
-    maxV = kMinutesMax;
   } else if (kind == 2) {
-    oldValue = hoursPart(current);
-    if (newSliderValue == oldValue) return;
+    if (newSliderValue == hoursPart(current)) return;
     total = timeoutFromParts(minutesPart(current), newSliderValue);
-    centerY = kHoursY;
-    maxV = kHoursMax;
   } else {
     return;
   }
@@ -225,8 +192,7 @@ void DeviceUi::dragSleepSlider(int kind, std::uint32_t newSliderValue) {
     sleepTimeoutSec_ = current;
     return;
   }
-  if (displayAwake_ && page_ == Page::Navigate)
-    moveSliderThumb(centerY, oldValue, newSliderValue, minV, maxV);
+  if (displayAwake_ && page_ == Page::Navigate) refresh();
 }
 
 void DeviceUi::setNavigateScroll(std::int16_t scroll) {
@@ -777,40 +743,46 @@ void DeviceUi::drawNavigate() {
   const std::uint32_t minutes = minutesPart(sleepTimeoutSec_);
   const std::uint32_t hours = hoursPart(sleepTimeoutSec_);
   canvas.setTextDatum(TL_DATUM);
-  auto drawLabel = [&](std::int16_t y, const char* text) {
-    if (y - scroll < kVisibleTop || y - scroll > kVisibleBottom - 16) return;
-    if (!navigateVisible(y - scroll, 16)) return;
-    canvas.setTextColor(kText, kBackground);
-    canvas.drawString(text, 8, y - scroll - drawingOffsetY_, 2);
+  auto drawWheel = [&](std::int16_t x0, std::int16_t x1,
+                       std::uint32_t value, std::uint32_t maximum,
+                       const char* label) {
+    const std::int16_t labelY = kWheelTopY - 18 - scroll;
+    if (navigateVisible(labelY, 16)) {
+      canvas.setTextColor(kMuted, kBackground);
+      const std::int16_t width = canvas.textWidth(label, 2);
+      canvas.drawString(label, x0 + ((x1 - x0) - width) / 2,
+                        labelY - drawingOffsetY_, 2);
+    }
+    const std::int16_t center = kWheelCenterY - scroll;
+    if (navigateVisible(center - kWheelRowH / 2, kWheelRowH)) {
+      canvas.fillRoundRect(x0, center - kWheelRowH / 2 - drawingOffsetY_,
+                           x1 - x0, kWheelRowH, 3, kPanel);
+    }
+    for (std::int16_t offset = -2; offset <= 2; ++offset) {
+      const std::int32_t candidate = static_cast<std::int32_t>(value) + offset;
+      if (candidate < 0 || candidate > static_cast<std::int32_t>(maximum)) continue;
+      const std::int16_t y = center + offset * kWheelRowH - 8;
+      if (!navigateVisible(y, 16)) continue;
+      char shown[12] = {};
+      snprintf(shown, sizeof(shown), "%02u",
+               static_cast<unsigned>(candidate));
+      canvas.setTextColor(offset == 0 ? kText : kMuted,
+                          offset == 0 ? kPanel : kBackground);
+      const std::int16_t width = canvas.textWidth(shown, 2);
+      canvas.drawString(shown, x0 + ((x1 - x0) - width) / 2,
+                        y - drawingOffsetY_, 2);
+    }
   };
-  auto drawTrack = [&](std::int16_t centerY, std::uint32_t value,
-                       std::uint32_t minV, std::uint32_t maxV) {
-    const std::int16_t screenY =
-        static_cast<std::int16_t>(centerY - scroll);
-    if (screenY < kVisibleTop + 8 || screenY > kVisibleBottom - 8) return;
-    if (!navigateVisible(screenY - 6, 13)) return;
-    const std::int16_t y = screenY - drawingOffsetY_;
-    canvas.drawRect(kTrackX0, y - 2, kTrackX1 - kTrackX0, 5, kText);
-    const std::int16_t thumbX = sliderXFromValue(value, minV, maxV);
-    if (thumbX > kTrackX0)
-      canvas.fillRect(kTrackX0, y - 2, thumbX - kTrackX0, 5, kAccent);
-    canvas.fillRect(thumbX - 6, y - 6, 12, 13, kText);
-    canvas.fillRect(thumbX - 4, y - 4, 8, 9, kPanel);
-  };
-  char line[32];
-  if (sleepTimeoutSec_ == 0U) {
-    snprintf(line, sizeof(line), "LOCAL SLEEP OFF");
-  } else {
-    snprintf(line, sizeof(line), "SLEEP %uH %uM", hours, minutes);
+  drawWheel(kHoursWheelX0, kHoursWheelX1, hours, kHoursMax, "HOUR");
+  drawWheel(kMinutesWheelX0, kMinutesWheelX1, minutes, kMinutesMax, "MIN");
+  const std::int16_t screenOffY = kScreenOffY - scroll;
+  if (navigateVisible(screenOffY, kScreenOffH)) {
+    const std::int16_t y = screenOffY - drawingOffsetY_;
+    canvas.fillRoundRect(kTrackX0, y, kTrackX1 - kTrackX0, kScreenOffH, 4,
+                         0xF800);
+    canvas.setTextColor(kText, 0xF800);
+    canvas.drawCentreString("SCREEN OFF", (kTrackX0 + kTrackX1) / 2, y + 7, 2);
   }
-  drawLabel(kCombinedY, line);
-  snprintf(line, sizeof(line), "MIN 0-59: %u", minutes);
-  drawLabel(kMinutesLabelY, line);
-  drawTrack(kMinutesY, minutes, 0U, kMinutesMax);
-  snprintf(line, sizeof(line), "HRS 0-24: %u", hours);
-  drawLabel(kHoursLabelY, line);
-  drawTrack(kHoursY, hours, 0U, kHoursMax);
-  drawLabel(kNoteY, "0M 0H = LOCAL OFF");
   // Scrollbar stays fixed on the right edge.
   const std::int16_t trackH = kScrollBarY1 - kScrollBarY0;
   const std::int16_t thumbH = static_cast<std::int16_t>(
@@ -831,6 +803,7 @@ void DeviceUi::drawPressedAction(const InputAction& action) {
   if (action.kind == InputKind::PageSwitch ||
       action.kind == InputKind::SleepMinutes ||
       action.kind == InputKind::SleepHours ||
+      action.kind == InputKind::ScreenOff ||
       action.kind == InputKind::NavigateScroll) {
     return;
   }

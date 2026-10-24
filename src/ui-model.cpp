@@ -40,6 +40,7 @@ void DisplayPowerSync::reset(std::uint32_t nowMs) {
   awake_ = true;
   connected_ = false;
   lightingConfigOff_ = false;
+  manualOff_ = false;
   lastActivityMs_ = nowMs;
   // 接続直後の通常状態が複数回全消灯で届いても画面を即座に消さない。
   ignoreAllOffUntil_ = nowMs + kWakeGraceMs;
@@ -48,7 +49,7 @@ void DisplayPowerSync::reset(std::uint32_t nowMs) {
 
 bool DisplayPowerSync::observeLightingConfig(bool allOff) {
   lightingConfigOff_ = allOff;
-  if (allOff || awake_) return false;
+  if (allOff || awake_ || manualOff_) return false;
   awake_ = true;
   return true;
 }
@@ -57,7 +58,7 @@ bool DisplayPowerSync::observeThreadLighting(std::uint8_t updatedMask, bool allO
                                              std::uint32_t nowMs) {
   const bool completeAllOff = updatedMask == kAllThreadsMask && allOff;
   if (!completeAllOff) {
-    if (awake_) return false;
+    if (awake_ || manualOff_) return false;
     awake_ = true;
     return true;
   }
@@ -79,7 +80,7 @@ bool DisplayPowerSync::setConnected(bool connected, std::uint32_t nowMs) {
 
   lightingConfigOff_ = false;
   ignoreAllOffUntil_ = nowMs + kWakeGraceMs;
-  if (awake_) return false;
+  if (awake_ || manualOff_) return false;
   awake_ = true;
   return true;
 }
@@ -104,6 +105,7 @@ bool DisplayPowerSync::tick(std::uint32_t nowMs) {
 
 bool DisplayPowerSync::wake(std::uint32_t nowMs) {
   const bool changed = !awake_;
+  manualOff_ = false;
   awake_ = true;
   lastActivityMs_ = nowMs;
   // Desktopは活動通知後に現在の照明状態を複数回再送する場合がある。全タスク
@@ -113,8 +115,15 @@ bool DisplayPowerSync::wake(std::uint32_t nowMs) {
   return changed;
 }
 
+bool DisplayPowerSync::sleepNow() {
+  const bool changed = awake_;
+  awake_ = false;
+  manualOff_ = true;
+  return changed;
+}
+
 InputAction actionAt(Page page, std::int16_t x, std::int16_t y,
-                     std::int16_t scroll) {
+                     std::int16_t scroll, std::uint32_t timeoutSec) {
   if (x < 0 || x >= 320 || y < 0 || y >= 240) {
     return {};
   }
@@ -131,11 +140,12 @@ InputAction actionAt(Page page, std::int16_t x, std::int16_t y,
     return gridAction(page, x, y, InputKind::CommandKey);
   }
 
-  return navigateActionAt(x, y, scroll);
+  return navigateActionAt(x, y, scroll, timeoutSec);
 }
 
 InputAction navigateActionAt(std::int16_t x, std::int16_t y,
-                               std::int16_t scroll) {
+                             std::int16_t scroll,
+                             std::uint32_t timeoutSec) {
   using namespace sleep_menu;
   const Page page = Page::Navigate;
   const std::int16_t contentY =
@@ -172,16 +182,21 @@ InputAction navigateActionAt(std::int16_t x, std::int16_t y,
     return {InputKind::EncoderStep, page, 1, 0.0F};
   if (contains(x, contentY, 166, 118, 106, 78))
     return {InputKind::EncoderPress, page, -1, 0.0F};
-  if (x >= 16 && x <= 283) {
-    if (contentY >= kMinutesY - kHalfH && contentY < kMinutesY + kHalfH)
+  if (contentY >= kWheelTopY && contentY < kWheelBottomY) {
+    if (x >= kMinutesWheelX0 && x < kMinutesWheelX1)
       return {InputKind::SleepMinutes, page,
-              static_cast<std::int8_t>(sliderValueFromX(x, 0U, kMinutesMax, 1U)),
+              static_cast<std::int8_t>(wheelValueForTap(
+                  minutesPart(timeoutSec), contentY, kMinutesMax)),
               0.0F};
-    if (contentY >= kHoursY - kHalfH && contentY < kHoursY + kHalfH)
+    if (x >= kHoursWheelX0 && x < kHoursWheelX1)
       return {InputKind::SleepHours, page,
-              static_cast<std::int8_t>(sliderValueFromX(x, 0U, kHoursMax, 1U)),
+              static_cast<std::int8_t>(wheelValueForTap(
+                  hoursPart(timeoutSec), contentY, kHoursMax)),
               0.0F};
   }
+  if (x >= kTrackX0 && x < kTrackX1 && contentY >= kScreenOffY &&
+      contentY < kScreenOffY + kScreenOffH)
+    return {InputKind::ScreenOff, page, -1, 0.0F};
   return {};
 }
 

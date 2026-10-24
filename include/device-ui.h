@@ -73,9 +73,6 @@ class DeviceUi {
   void drawEncoderPressButton();
   void drawButton(std::int16_t x, std::int16_t y, std::int16_t width,
                     std::int16_t height, bool pressed, std::uint16_t border);
-  void moveSliderThumb(std::int16_t centerY, std::uint32_t oldValue,
-                       std::uint32_t newValue, std::uint32_t minV,
-                       std::uint32_t maxV);
   void drawStatusIcon(StatusKind status, std::int16_t x, std::int16_t y,
                       std::uint16_t color);
   void drawCommandIcon(std::uint8_t index, std::int16_t x, std::int16_t y,

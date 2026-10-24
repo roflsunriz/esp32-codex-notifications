@@ -19,6 +19,7 @@ DragKind dragKind = DragKind::None;
 std::uint32_t lastDragDrawMs = 0;
 std::int16_t dragStartY = 0;
 std::int16_t dragStartScroll = 0;
+std::uint32_t dragStartValue = 0U;
 bool bootRawHigh = true;
 bool bootStableHigh = true;
 bool bootGestureArmed = false;
@@ -38,6 +39,12 @@ void press(const InputAction& action) {
     return;
   }
   codex.noteDisplayActivity();
+  if (action.kind == InputKind::ScreenOff) {
+    dragKind = DragKind::None;
+    ui.setDisplayAwake(false);
+    codex.sleepDisplay();
+    return;
+  }
   if (action.kind == InputKind::SleepMinutes ||
       action.kind == InputKind::SleepHours) {
     const std::uint32_t current = ui.sleepTimeoutSec();
@@ -161,7 +168,8 @@ void loop() {
     if (ui.displayAwake()) {
       std::int16_t scroll = 0;
       if (ui.page() == Page::Navigate) scroll = ui.navigateScroll();
-      const InputAction pressed = actionAt(ui.page(), x, y, scroll);
+      const InputAction pressed =
+          actionAt(ui.page(), x, y, scroll, ui.sleepTimeoutSec());
       press(pressed);
       // Fix the drag gesture mode at press time. Empty taps and scrollbar
       // taps become relative scrolls; slider taps keep adjusting.
@@ -178,6 +186,12 @@ void loop() {
                        : DragKind::Scroll;
         dragStartY = y;
         dragStartScroll = ui.navigateScroll();
+        dragStartValue =
+            pressed.kind == InputKind::SleepMinutes
+                ? sleep_menu::minutesPart(ui.sleepTimeoutSec())
+                : pressed.kind == InputKind::SleepHours
+                      ? sleep_menu::hoursPart(ui.sleepTimeoutSec())
+                      : 0U;
       }
       if (pressed.kind == InputKind::NavigateScroll) {
         ui.pageNavigateScroll(pressed.index);
@@ -204,15 +218,15 @@ void loop() {
           lastDragDrawMs = millis();
         }
       }
-    } else if (x >= 16 && x <= 283) {
+    } else {
       if (dragKind == DragKind::SleepMinutes) {
-        const std::uint32_t minutes = sleep_menu::sliderValueFromX(
-            x, 0U, sleep_menu::kMinutesMax, 1U);
+        const std::uint32_t minutes = sleep_menu::wheelValueForDrag(
+            dragStartValue, dragStartY, y, sleep_menu::kMinutesMax);
         ui.dragSleepSlider(1, minutes);
         lastDragDrawMs = millis();
       } else {
-        const std::uint32_t hours = sleep_menu::sliderValueFromX(
-            x, 0U, sleep_menu::kHoursMax, 1U);
+        const std::uint32_t hours = sleep_menu::wheelValueForDrag(
+            dragStartValue, dragStartY, y, sleep_menu::kHoursMax);
         ui.dragSleepSlider(2, hours);
         lastDragDrawMs = millis();
       }

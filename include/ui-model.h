@@ -14,6 +14,7 @@ enum class InputKind : std::uint8_t {
   Joystick,
   SleepMinutes,
   SleepHours,
+  ScreenOff,
   NavigateScroll,
 };
 
@@ -29,6 +30,7 @@ class DisplayPowerSync {
   bool setConnected(bool connected, std::uint32_t nowMs);
   bool tick(std::uint32_t nowMs);
   bool wake(std::uint32_t nowMs);
+  bool sleepNow();
   bool awake() const { return awake_; }
   // User idle auto-off in seconds. 0 disables it (lighting-driven only).
   void setIdleTimeoutSec(std::uint32_t seconds) {
@@ -46,6 +48,7 @@ class DisplayPowerSync {
   bool awake_ = true;
   bool connected_ = false;
   bool lightingConfigOff_ = false;
+  bool manualOff_ = false;
   std::uint32_t ignoreAllOffUntil_ = kWakeGraceMs;
   std::uint32_t disconnectSleepAt_ = kDisconnectSleepMs;
   std::uint32_t idleTimeoutSec_ = 0U;
@@ -104,9 +107,11 @@ enum class StatusKind : std::uint8_t {
 };
 
 InputAction actionAt(Page page, std::int16_t x, std::int16_t y,
-                     std::int16_t scroll = 0);
+                     std::int16_t scroll = 0,
+                     std::uint32_t timeoutSec = 0U);
 InputAction navigateActionAt(std::int16_t x, std::int16_t y,
-                             std::int16_t scroll);
+                             std::int16_t scroll,
+                             std::uint32_t timeoutSec = 0U);
 ScreenPoint orientPoint(ScreenPoint point, bool inverted);
 BootGesture bootGestureForDuration(std::uint32_t durationMs);
 std::int16_t touchThresholdForPressure(std::int16_t weakestPressure);
@@ -118,8 +123,8 @@ float synchronizedLightingBrightness(float previous, float observed,
                                        bool observable);
 std::uint8_t backlightDuty(float brightness, bool displayAwake);
 
-// Navigate-tab sleep menu (auto-off without polling). Minutes/hours
-// sliders set the idle timeout in seconds; 0 minutes + 0 hours disables it.
+// Navigate-tab sleep menu (auto-off without polling). Minutes/hours use
+// vertical drums; 0 minutes + 0 hours disables the local timer.
 // Touch positions are calibrated to screen 24..295, so controls stay inside.
 namespace sleep_menu {
 constexpr std::uint32_t kMinutesMax = 59U;
@@ -127,14 +132,17 @@ constexpr std::uint32_t kHoursMax = 24U;
 constexpr std::uint32_t kTimeoutMaxSec = 24U * 3600U + 59U * 60U;
 constexpr std::int16_t kTrackX0 = 24;
 constexpr std::int16_t kTrackX1 = 275;
-constexpr std::int16_t kCombinedY = 212;
-constexpr std::int16_t kMinutesLabelY = 230;
-constexpr std::int16_t kMinutesY = 250;
-constexpr std::int16_t kHoursLabelY = 272;
-constexpr std::int16_t kHoursY = 292;
-constexpr std::int16_t kNoteY = 314;
-constexpr std::int16_t kHalfH = 14;
-constexpr std::int16_t kContentH = 330;
+constexpr std::int16_t kWheelRowH = 22;
+constexpr std::int16_t kWheelCenterY = 272;
+constexpr std::int16_t kWheelTopY = kWheelCenterY - kWheelRowH * 2 - 11;
+constexpr std::int16_t kWheelBottomY = kWheelCenterY + kWheelRowH * 2 + 11;
+constexpr std::int16_t kHoursWheelX0 = 24;
+constexpr std::int16_t kHoursWheelX1 = 146;
+constexpr std::int16_t kMinutesWheelX0 = 154;
+constexpr std::int16_t kMinutesWheelX1 = 275;
+constexpr std::int16_t kScreenOffY = 338;
+constexpr std::int16_t kScreenOffH = 30;
+constexpr std::int16_t kContentH = 382;
 constexpr std::int16_t kVisibleTop = 28;
 constexpr std::int16_t kVisibleBottom = 208;
 constexpr std::int16_t kScrollMax =
@@ -193,6 +201,32 @@ inline std::int16_t clampScroll(int value) {
   if (value < 0) return 0;
   if (value > kScrollMax) return kScrollMax;
   return static_cast<std::int16_t>(value);
+}
+
+inline int wheelSteps(int pixels) {
+  return pixels >= 0 ? (pixels + kWheelRowH / 2) / kWheelRowH
+                     : -((-pixels + kWheelRowH / 2) / kWheelRowH);
+}
+
+inline std::uint32_t clampWheelValue(int value, std::uint32_t maximum) {
+  if (value < 0) return 0U;
+  if (static_cast<std::uint32_t>(value) > maximum) return maximum;
+  return static_cast<std::uint32_t>(value);
+}
+
+inline std::uint32_t wheelValueForTap(std::uint32_t current, int touchY,
+                                      std::uint32_t maximum) {
+  return clampWheelValue(static_cast<int>(current) +
+                             wheelSteps(touchY - kWheelCenterY),
+                         maximum);
+}
+
+inline std::uint32_t wheelValueForDrag(std::uint32_t start, int startY,
+                                       int currentY,
+                                       std::uint32_t maximum) {
+  return clampWheelValue(static_cast<int>(start) +
+                             wheelSteps(startY - currentY),
+                         maximum);
 }
 
 inline std::int16_t scrollFromTrackY(std::int16_t y) {

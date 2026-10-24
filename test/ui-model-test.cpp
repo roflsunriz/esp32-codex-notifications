@@ -183,9 +183,9 @@ void testNavigateDragKeepsOnePressAndMovesBothControls() {
             "ドラッグを別のタップとして扱わない");
   }
   require(point.y < 80, "縦ドラッグがスクロールへ届く");
-  require(sleep_menu::sliderValueFromX(point.x, 0U, sleep_menu::kMinutesMax, 1U) >
-              40U,
-          "横ドラッグがスライダーへ届く");
+  require(sleep_menu::wheelValueForDrag(30U, 170, point.y,
+                                        sleep_menu::kMinutesMax) > 30U,
+          "縦ドラッグがドラムへ届く");
   require(touchTransition(captured, true, false) == TouchTransition::Release,
           "接触終了で解放");
 }
@@ -281,6 +281,14 @@ void testIdleTimeoutSleepsAfterInactivity() {
   require(!power.tick(3600000U), "0は常時点灯");
   power.setIdleTimeoutSec(0xFFFFFFFFU);
   require(power.idleTimeoutSec() == 0U, "範囲外は無効");
+  require(power.sleepNow(), "消灯ボタンで即時消灯");
+  require(!power.awake(), "即時消灯後は画面OFF");
+  require(!power.observeLightingConfig(false), "照明再送では手動消灯を解除しない");
+  require(!power.observeThreadLighting(0x01, false, 3600000U),
+          "タスク変化でも手動消灯を解除しない");
+  require(!power.setConnected(true, 3600000U),
+          "再接続でも手動消灯を解除しない");
+  require(power.wake(3600001U), "次のタッチで復帰");
 }
 
 void testSleepSliderMapping() {
@@ -295,6 +303,13 @@ void testSleepSliderMapping() {
   require(sliderValueFromX(kTrackX1, 0U, 59U, 1U) == 59U, "軌道右端");
   require(sliderXFromValue(0U, 0U, 59U) == kTrackX0, "つまみ左端");
   require(sliderXFromValue(59U, 0U, 59U) == kTrackX1, "つまみ右端");
+  require(wheelValueForTap(10U, kWheelCenterY + kWheelRowH * 2,
+                           kMinutesMax) == 12U,
+          "ドラム下段タップ");
+  require(wheelValueForDrag(10U, 120, 76, kMinutesMax) == 12U,
+          "ドラム上方向ドラッグ");
+  require(wheelValueForDrag(1U, 100, 200, kMinutesMax) == 0U,
+          "ドラム下限");
   require(clampScroll(-1) == 0, "スクロール下限");
   require(clampScroll(9999) == kScrollMax, "スクロール上限");
   require(scrollFromTrackY(kScrollBarY0) == 0, "バー上端");
@@ -303,18 +318,25 @@ void testSleepSliderMapping() {
 
 void testNavigateSleepControls() {
   using namespace sleep_menu;
-  const InputAction minutes =
-      actionAt(Page::Navigate, sliderXFromValue(30U, 0U, 59U), kMinutesY - 60, 60);
-  require(minutes.kind == InputKind::SleepMinutes, "分スライダー");
-  require(minutes.index == 30, "分の値");
-  const InputAction hours =
-      actionAt(Page::Navigate, sliderXFromValue(2U, 0U, 24U), kHoursY - 100, 100);
-  require(hours.kind == InputKind::SleepHours, "時間スライダー");
-  require(hours.index == 2, "時間の値");
-  const InputAction scrolled = actionAt(Page::Navigate,
-                                        sliderXFromValue(30U, 0U, 59U),
-                                        200, 55);
+  const std::uint32_t timeout = timeoutFromParts(30U, 2U);
+  const std::int16_t scroll = 100;
+  const InputAction minutes = actionAt(
+      Page::Navigate, (kMinutesWheelX0 + kMinutesWheelX1) / 2,
+      kWheelCenterY + kWheelRowH - scroll, scroll, timeout);
+  require(minutes.kind == InputKind::SleepMinutes, "分ドラム");
+  require(minutes.index == 31, "分ドラムの下段");
+  const InputAction hours = actionAt(
+      Page::Navigate, (kHoursWheelX0 + kHoursWheelX1) / 2,
+      kWheelCenterY - kWheelRowH - scroll, scroll, timeout);
+  require(hours.kind == InputKind::SleepHours, "時間ドラム");
+  require(hours.index == 1, "時間ドラムの上段");
+  const InputAction scrolled = actionAt(
+      Page::Navigate, (kMinutesWheelX0 + kMinutesWheelX1) / 2,
+      kWheelCenterY - scroll, scroll, timeout);
   require(scrolled.kind == InputKind::SleepMinutes, "スクロール追従");
+  const InputAction off =
+      actionAt(Page::Navigate, 100, kScreenOffY - 160, 160, timeout);
+  require(off.kind == InputKind::ScreenOff, "即時消灯ボタン");
   const InputAction bar =
       actionAt(Page::Navigate, kScrollBarX0 + 6, 190);
   require(bar.kind == InputKind::NavigateScroll, "スクロールバー");
